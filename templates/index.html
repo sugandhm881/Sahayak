@@ -315,6 +315,14 @@
       </label>
     </div>
 
+    <div class="ctrl-group" id="tds_wrapper" style="display:none;">
+      <span class="ctrl-label">TDS Applicable</span>
+      <select id="tds_applicable">
+        <option value="no">No</option>
+        <option value="yes">Yes (Deduct 1%)</option>
+      </select>
+    </div>
+
     <div class="ctrl-group">
       <span class="ctrl-label">Document Type</span>
       <select id="doc_type_select" style="min-width: 280px;"></select>
@@ -635,7 +643,15 @@ document.addEventListener("DOMContentLoaded", async () => {
       controlInput: null,
       onChange: filterHistory
   });
-
+  if (document.getElementById('tds_applicable')) {
+      new TomSelect("#tds_applicable", {
+          controlInput: null,
+          create: false,
+          onInitialize: function() {
+              this.control.style.minWidth = '200px';
+          }
+      });
+  }
   populateStates();
   document.getElementsByName('appMode').forEach(r => { if(r.checked) currentMode = r.value; });
   handleModeChange();
@@ -653,22 +669,29 @@ function applyServiceMode() {
   const rateHeader = document.getElementById('rateColHeader');
   const qtyHeader = document.getElementById('qtyColHeader');
   const qtyCells = document.querySelectorAll('.qty-cell');
-  const subParticulars = document.querySelectorAll('.sub-particular');
+  const subParticularWrappers = document.querySelectorAll('.sub-particular-wrapper');
+  const tdsWrapper = document.getElementById('tds_wrapper');
 
   if (IS_SERVICE) {
     if (shipBlock) shipBlock.style.display = 'none';
     if (notice) notice.style.display = 'inline-flex';
     if (rateHeader) rateHeader.textContent = 'Rate (Excl. Tax)';
     if (qtyHeader) qtyHeader.style.display = 'none';
+    if (tdsWrapper) tdsWrapper.style.display = 'flex';
     qtyCells.forEach(c => c.style.display = 'none');
-    subParticulars.forEach(c => c.style.display = 'block');
+    subParticularWrappers.forEach(c => c.style.display = 'block');
   } else {
     if (shipBlock) shipBlock.style.display = '';
     if (notice) notice.style.display = 'none';
     if (rateHeader) rateHeader.textContent = 'Rate (Incl. Tax)';
     if (qtyHeader) qtyHeader.style.display = '';
+    if (tdsWrapper) {
+      tdsWrapper.style.display = 'none';
+      const tdsSel = document.getElementById('tds_applicable');
+      if (tdsSel && tdsSel.tomselect) tdsSel.tomselect.setValue('no');
+    }
     qtyCells.forEach(c => c.style.display = '');
-    subParticulars.forEach(c => c.style.display = 'none');
+    subParticularWrappers.forEach(c => c.style.display = 'none');
   }
 }
 
@@ -835,10 +858,8 @@ async function loadParticulars() {
     const rawData = await r.json(); 
     particularsData = {};
     
-    // Automatically clean up any legacy merged strings from the database
     Object.keys(rawData).forEach(key => {
         const cleanKey = key.split('\n')[0].trim();
-        // Map the existing rate/tax details to the clean name
         particularsData[cleanKey] = rawData[key]; 
     });
   } catch(e) { 
@@ -996,17 +1017,23 @@ function editInvoice(billNo) {
   
   document.getElementById('itemsBody').innerHTML = '';
   (inv.particulars||[]).forEach((item, i) => {
-    const row = addRow();
-    const sel = row.querySelector('.particulars-select');
-    let mainText = item;
-    let subText = '';
-    if (IS_SERVICE && item.includes('\n')) {
-        const parts = item.split('\n');
-        mainText = parts[0];
-        subText = parts.slice(1).join('\n');
-    }
-    if(sel.tomselect) { sel.tomselect.addOption({value:mainText,text:mainText}); sel.tomselect.setValue(mainText); }
-    if (IS_SERVICE) row.querySelector('.sub-particular').value = subText;
+    const row = addRow();
+    const sel = row.querySelector('.particulars-select');
+    let mainText = item;
+    let subText = '';
+    if (IS_SERVICE && item.includes('\n')) {
+        const parts = item.split('\n');
+        mainText = parts[0];
+        subText = parts.slice(1).join('\n');
+    }
+    if(sel.tomselect) { sel.tomselect.addOption({value:mainText,text:mainText}); sel.tomselect.setValue(mainText, true); }
+    if (IS_SERVICE) {
+        const subSel = row.querySelector('.sub-particular');
+        if (subSel.tomselect) {
+            subSel.tomselect.addOption({value: subText, text: subText});
+            subSel.tomselect.setValue(subText, true);
+        }
+    }
     
     row.querySelector('.hsn').value = inv.hsns?inv.hsns[i]:'';
     row.querySelector('.qty').value = inv.qtys?Math.abs(inv.qtys[i]):1;
@@ -1029,15 +1056,37 @@ async function handleParticularInput(val, row) {
   const isNonGST = document.getElementById('is_non_gst').checked;
   let fd = particularsData[isNonGST ? val+'_NONGST' : val] || (isNonGST ? particularsData[val] : null);
   if(fd) {
-    if(fd.rate !== undefined) row.querySelector('.rate').value = fd.rate;
-    if(isNonGST) row.querySelector('.hsn').value=''; else if(fd.hsn) row.querySelector('.hsn').value=fd.hsn;
-    if(!isNonGST && fd.taxrate !== undefined) {
-        const trSel = row.querySelector('.taxrate');
-        if(trSel.tomselect) trSel.tomselect.setValue(fd.taxrate);
+    if(IS_SERVICE) {
+        const subSel = row.querySelector('.sub-particular');
+        if(subSel && subSel.tomselect) {
+            subSel.tomselect.clearOptions();
+            subSel.tomselect.clear();
+            let subs = fd.sub_particulars || [];
+            if(fd.sub_particular && !subs.includes(fd.sub_particular)) subs.push(fd.sub_particular);
+            subs.forEach(s => subSel.tomselect.addOption({value: s, text: s}));
+            
+            if(subs.length > 0) {
+                subSel.tomselect.setValue(subs[0]); 
+            } else {
+                if(fd.rate !== undefined) row.querySelector('.rate').value = fd.rate;
+                if(isNonGST) row.querySelector('.hsn').value=''; else if(fd.hsn) row.querySelector('.hsn').value=fd.hsn;
+                if(!isNonGST && fd.taxrate !== undefined) {
+                    const trSel = row.querySelector('.taxrate');
+                    if(trSel.tomselect) trSel.tomselect.setValue(fd.taxrate);
+                }
+                calculateRowAmount.call(row.querySelector('.qty'));
+            }
+        }
+    } else {
+        if(fd.rate !== undefined) row.querySelector('.rate').value = fd.rate;
+        if(isNonGST) row.querySelector('.hsn').value=''; else if(fd.hsn) row.querySelector('.hsn').value=fd.hsn;
+        if(!isNonGST && fd.taxrate !== undefined) {
+            const trSel = row.querySelector('.taxrate');
+            if(trSel.tomselect) trSel.tomselect.setValue(fd.taxrate);
+        }
+        calculateRowAmount.call(row.querySelector('.qty'));
     }
-    calculateRowAmount.call(row.querySelector('.qty'));
   }
-  
   // Skip stock checking entirely if we are in Service Mode
   if(currentMode === 'sale' && !IS_SERVICE) {
     sl.innerHTML = '<span class="stock-chip chk">Checking…</span>';
@@ -1061,7 +1110,9 @@ function addRow() {
   row.innerHTML = `
     <td style="padding:8px;min-width:220px;">
       <select class="particulars-select" placeholder="Search or type item…"></select>
-      <textarea class="sub-particular" placeholder="Sub Particular (e.g. GST Filing & Bookkeeping...)" rows="2" style="display:none; width:100%; margin-top:6px; font-size:12px; padding:6px; border:1px solid var(--border); border-radius:var(--radius-sm);"></textarea>
+      <div class="sub-particular-wrapper" style="display:none; margin-top:6px;">
+        <select class="sub-particular" placeholder="Select or type new sub-particular..."></select>
+      </div>
       <div class="stock-label"></div>
     </td>
     <td style="padding:5px 6px;"><input type="text" value="" class="hsn" style="text-align:center;width:82px;"></td>
@@ -1073,11 +1124,49 @@ function addRow() {
     <td style="padding:5px 6px;text-align:center;"><button type="button" onclick="removeRow(this)" class="row-remove">×</button></td>`;
   tbody.appendChild(row);
   
+  const subSelEl = row.querySelector('.sub-particular');
+  let subTomSelect = new TomSelect(subSelEl, {
+      create: true,
+      sortField: {field: "text", direction: "asc"},
+      dropdownParent: 'body',
+      onChange: function(subVal) {
+          if(!subVal) return;
+          const mainSel = row.querySelector('.particulars-select');
+          if(!mainSel || !mainSel.tomselect) return;
+          const mainVal = mainSel.tomselect.getValue();
+          if(!mainVal) return;
+          
+          const isNonGST = document.getElementById('is_non_gst').checked;
+          let fd = particularsData[isNonGST ? mainVal+'_NONGST' : mainVal] || (isNonGST ? particularsData[mainVal] : null);
+          
+          if (fd && fd.sub_details && fd.sub_details[subVal]) {
+              const sd = fd.sub_details[subVal];
+              if(sd.rate !== undefined) row.querySelector('.rate').value = sd.rate;
+              if(isNonGST) row.querySelector('.hsn').value=''; else if(sd.hsn) row.querySelector('.hsn').value=sd.hsn;
+              if(!isNonGST && sd.taxrate !== undefined) {
+                  const trSel = row.querySelector('.taxrate');
+                  if(trSel.tomselect) trSel.tomselect.setValue(sd.taxrate);
+              }
+              calculateRowAmount.call(row.querySelector('.qty'));
+          }
+      }
+  });
+
   new TomSelect(row.querySelector('.particulars-select'), {
-    options: Object.keys(particularsData).map(k=>({value:k,text:k})),
-    create: true, 
+    options: Object.keys(particularsData).map(k => {
+      return { value: k, text: k };
+    }),
+    create: true,
     sortField: {field:"text", direction:"asc"},
     dropdownParent: 'body',
+    render: {
+      option: function(data, escape) {
+        return `<div style="padding:8px 12px;font-size:13px;">${escape(data.text)}</div>`;
+      },
+      item: function(data, escape) {
+        return `<div>${escape(data.text)}</div>`;
+      }
+    },
     onChange: val => handleParticularInput(val, row)
   });
 
@@ -1099,6 +1188,8 @@ function removeRow(btn) {
   const row = btn.closest('tr');
   const s = row.querySelector('.particulars-select');
   if(s && s.tomselect) s.tomselect.destroy();
+  const sub = row.querySelector('.sub-particular');
+  if(sub && sub.tomselect) sub.tomselect.destroy();
   const tr = row.querySelector('.taxrate');
   if(tr && tr.tomselect) tr.tomselect.destroy();
   row.remove(); 
@@ -1213,7 +1304,8 @@ document.getElementById('generateBtn').addEventListener('click', async () => {
         const s = tr.querySelector('.particulars-select'); 
         let mainPart = s.tomselect ? s.tomselect.getValue() : '';
         if (IS_SERVICE) {
-            const subPart = tr.querySelector('.sub-particular').value.trim();
+            const subSel = tr.querySelector('.sub-particular');
+            const subPart = subSel && subSel.tomselect ? subSel.tomselect.getValue().trim() : '';
             if (subPart) mainPart += '\n' + subPart;
         }
         return mainPart; 
@@ -1224,9 +1316,15 @@ document.getElementById('generateBtn').addEventListener('click', async () => {
     taxrates:  Array.from(items).map(tr => { const t = tr.querySelector('.taxrate'); return parseFloat(t.tomselect ? t.tomselect.getValue() : t.value) || 0; }),
     hsns:      Array.from(items).map(tr => tr.querySelector('.hsn').value.trim()),
     amounts:   Array.from(items).map(tr => parseFloat(tr.querySelector('.amount').value||0)),
+    sub_particulars: Array.from(items).map(tr => {
+        if (!IS_SERVICE) return '';
+        const subSel = tr.querySelector('.sub-particular');
+        return subSel && subSel.tomselect ? subSel.tomselect.getValue().trim() : '';
+    }),
+    tds_applicable: IS_SERVICE && (() => { const el = document.getElementById('tds_applicable'); return el && (el.tomselect ? el.tomselect.getValue() : el.value) === 'yes'; })(),
     auto_generate:       tsGenType ? (tsGenType.getValue() === 'auto') : true,
     manual_bill_no:      document.getElementById('manual_bill_no').value.trim(),
-    manual_invoice_date: rawDate, // Passing raw YYYY-MM-DD directly to the backend
+    manual_invoice_date: rawDate,
   };
   const btn = document.getElementById('generateBtn');
   const savedHTML = btn.innerHTML;

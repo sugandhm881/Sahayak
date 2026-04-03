@@ -573,9 +573,14 @@ def PDF_Generator(invoice_data, is_credit_note=False, is_debit_note=False):
 
     upi_id_prof = profile.get('upi_id', '').strip()
     g_tot = invoice_data.get('grand_total', 0)
+    qr_amount = g_tot
+    if invoice_data.get('tds_applicable'):
+        sub_total = invoice_data.get('sub_total', 0)
+        tds_deduction = round(abs(sub_total) * 0.01, 2)
+        qr_amount = round(abs(g_tot) - tds_deduction, 2)    
     if upi_id_prof and g_tot > 0 and not is_credit_note and not is_debit_note:
         try:
-            qr_b64 = generate_upi_qr_base64(upi_id_prof, profile.get('company_name', UPI_NAME), abs(g_tot))
+            qr_b64 = generate_upi_qr_base64(upi_id_prof, profile.get('company_name', UPI_NAME), qr_amount)
             if qr_b64:
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
                     tmp.write(base64.b64decode(qr_b64)); qr_tmp = tmp.name
@@ -584,7 +589,8 @@ def PDF_Generator(invoice_data, is_credit_note=False, is_debit_note=False):
                 pdf.image(qr_tmp, x=margin, y=pdf.get_y(), w=28, h=28)
                 pdf.set_font("Calibri", "", 8)
                 pdf.set_xy(margin + 30, pdf.get_y())
-                pdf.multi_cell(60, 4, f"UPI ID: {upi_id_prof}\nAmount: Rs. {abs(g_tot):.2f}\n(Scan to pay)")
+                tds_note = f" (After TDS @1%)" if invoice_data.get('tds_applicable') else ""
+                pdf.multi_cell(60, 4, f"UPI ID: {upi_id_prof}\nAmount: Rs. {qr_amount:.2f}{tds_note}\n(Scan to pay)")
                 pdf.ln(20)
                 os.unlink(qr_tmp)
         except Exception: pass
@@ -952,60 +958,74 @@ def handle_invoice():
         # Create a map of lowercase names pointing to their actual saved names
         particulars_lower_map = {k.lower(): k for k in existing_particulars.keys()}
 
+        sub_particulars_list = data.get('sub_particulars', [])
         for i, item_name in enumerate(particulars):
             if item_name:
                 main_item_name = item_name.split('\n')[0].strip()
                 base_name = f"{main_item_name}_NONGST" if is_non_gst else main_item_name
                 
-                # If a match exists (regardless of caps), use the existing exact name!
                 if base_name.lower() in particulars_lower_map:
                     final_save_name = particulars_lower_map[base_name.lower()]
                 else:
                     final_save_name = base_name
-                    particulars_lower_map[base_name.lower()] = final_save_name # Map it for the next loop
+                    particulars_lower_map[base_name.lower()] = final_save_name
+
+                existing_data = existing_particulars.get(final_save_name, {}) if final_save_name in existing_particulars else existing_particulars.get(base_name, {})
+                existing_subs = existing_data.get('sub_particulars', [])
+                sub_details = existing_data.get('sub_details', {})
+                
+                if 'sub_particular' in existing_data and existing_data['sub_particular'] and existing_data['sub_particular'] not in existing_subs:
+                    existing_subs.append(existing_data['sub_particular'])
+                
+                new_sub = sub_particulars_list[i].strip() if i < len(sub_particulars_list) else ""
+                if new_sub:
+                    if new_sub not in existing_subs:
+                        existing_subs.append(new_sub)
+                    
+                    sub_details[new_sub] = {
+                        "hsn": "" if is_non_gst else (hsns[i] if i<len(hsns) else ""),
+                        "rate": rates[i] if i<len(rates) else 0,
+                        "taxrate": 0 if is_non_gst else (taxrates[i] if i<len(taxrates) else 0)
+                    }
 
                 save_single_particular(final_save_name, {
                     "hsn": "" if is_non_gst else (hsns[i] if i<len(hsns) else ""),
                     "rate": rates[i] if i<len(rates) else 0,
-                    "taxrate": 0 if is_non_gst else (taxrates[i] if i<len(taxrates) else 0)
+                    "taxrate": 0 if is_non_gst else (taxrates[i] if i<len(taxrates) else 0),
+                    "sub_particulars": existing_subs,
+                    "sub_details": sub_details
                 })
-
         if client_name: save_single_client(client_name, client_details)
 
         # --- REPLACE FROM HERE ---
         if data.get("auto_generate", True) and not is_edit:
             prefix = get_seller_profile_data().get('invoice_prefix', 'TE').upper()
+            
+            now = date.today()
+            if now.month >= 4:
+                fy_str = f"{now.year}-{str(now.year + 1)[-2:]}"
+            else:
+                fy_str = f"{now.year - 1}-{str(now.year)[-2:]}"
+
+            def get_fy_counter(doc_cat, d_type, is_cn=False, is_dn=False):
+                docs = load_invoices()
+                count = 0
+                for d in docs:
+                    if d.get('doc_category', 'sale') == doc_cat and d.get('doc_type', 'invoice') == d_type and d.get('is_credit_note', False) == is_cn and d.get('is_debit_note', False) == is_dn:
+                        if fy_str in d.get('bill_no', ''):
+                            count += 1
+                return count + 1
+
             if doc_category == 'purchase':
-                if doc_type == 'po': bill_no = f"{prefix}-PO/25-26/{get_next_counter(is_purchase=True, doc_type='po'):04d}"
-                elif doc_type == 'grn': bill_no = f"{prefix}-GRN/25-26/{get_next_counter(is_purchase=True, doc_type='grn'):04d}"
-                elif doc_type == 'bill': bill_no = f"{prefix}-PB/25-26/{get_next_counter(is_purchase=True, doc_type='bill'):04d}"
-                elif doc_type == 'dn': bill_no = f"{prefix}-PDN/25-26/{get_next_counter(is_purchase=True, is_debit_note=True):04d}"
+                if doc_type == 'po': bill_no = f"{prefix}-PO/{fy_str}/{get_fy_counter('purchase', 'po'):03d}"
+                elif doc_type == 'grn': bill_no = f"{prefix}-GRN/{fy_str}/{get_fy_counter('purchase', 'grn'):03d}"
+                elif doc_type == 'bill': bill_no = f"{prefix}-PB/{fy_str}/{get_fy_counter('purchase', 'bill'):03d}"
+                elif doc_type == 'dn': bill_no = f"{prefix}-PDN/{fy_str}/{get_fy_counter('purchase', 'dn', is_dn=True):03d}"
                 else: bill_no = f"TEMP-{random.randint(1000,9999)}"
             else:
-                if doc_type == 'cn': bill_no = f"{prefix}-CN/25-26/{get_next_counter(is_credit_note=True):04d}"
-                else: bill_no = f"{prefix}/25-26/{get_next_counter(is_credit_note=False):04d}"
+                if doc_type == 'cn': bill_no = f"{prefix}-CN/{fy_str}/{get_fy_counter('sale', 'cn', is_cn=True):03d}"
+                else: bill_no = f"{prefix}/{fy_str}/{get_fy_counter('sale', 'invoice'):03d}"
             invoice_date_str = date.today().strftime('%d-%b-%Y')
-        else:
-            bill_no = str(data.get("manual_bill_no") or data.get("bill_no", "")).strip()
-            
-            if not is_edit:
-                c_name = 'purchase_bills' if doc_category == 'purchase' else 'sales_invoices'
-                chk = supabase.table('documents').select('bill_no').eq('tenant_id', get_tenant_id()).eq('collection_name', c_name).eq('bill_no', bill_no.replace('/','_')).execute()
-                if chk.data: 
-                    return jsonify({"error": f"Document Number '{bill_no}' already exists! Please use a unique number."}), 409
-
-            
-            manual_date = data.get("manual_invoice_date") or data.get("invoice_date", "")
-            if manual_date:
-                try: 
-                    invoice_date_str = datetime.strptime(manual_date, '%Y-%m-%d').strftime('%d-%b-%Y')
-                except ValueError:
-                    try:
-                        invoice_date_str = datetime.strptime(manual_date, '%d-%b-%Y').strftime('%d-%b-%Y')
-                    except ValueError:
-                        invoice_date_str = date.today().strftime('%d-%b-%Y')
-            else: 
-                invoice_date_str = date.today().strftime('%d-%b-%Y')
         
         prof = get_seller_profile_data()
         my_state_code = prof.get('gstin', '')[:2] if len(prof.get('gstin', '')) >= 2 else None
@@ -1050,7 +1070,7 @@ def handle_invoice():
             "shipto_address2": data.get('shipto_address2'), "shipto_pincode": data.get('shipto_pincode'),
             "shipto_district": data.get('shipto_district'), "shipto_state": data.get('shipto_state'),
             "shipto_gstin": data.get('shipto_gstin'), "shipto_email": data.get('shipto_email'), "shipto_mobile": data.get('shipto_mobile'),
-            "po_number": data.get('po_number'), "my_gstin": prof.get('gstin', ''),
+            "po_number": data.get('po_number'), "my_gstin": prof.get('gstin', ''),"tds_applicable": data.get('tds_applicable', False),
             "particulars": particulars, "qtys": qtys, "rates": rates, "taxrates": taxrates, "hsns": hsns, "discounts": data.get('discounts', []),
             "amounts": line_taxable, "total_discount": round(total_discount_amt, 2), "sub_total": round(sum(line_taxable), 2),
             "igst": round(total_igst, 2), "cgst": round(total_cgst, 2), "sgst": round(total_sgst, 2), "grand_total": round(sum(line_total), 2),
@@ -1237,6 +1257,60 @@ def download_invoice(bill_no):
     prefix = "CreditNote" if is_cn else ("DebitNote" if is_dn else "Invoice")
     return send_file(PDF_Generator(inv, is_credit_note=is_cn, is_debit_note=is_dn), mimetype="application/pdf", as_attachment=True, download_name=f"{prefix}_{unquote(bill_no).replace('/','_')}.pdf")
 
+@app.route('/download-receipt/<path:payment_id>', methods=['GET'])
+@login_required
+def download_receipt(payment_id):
+    try:
+        payment_id = unquote(payment_id)
+        res = supabase.table('payments').select('data').eq('tenant_id', get_tenant_id()).eq('payment_id', payment_id).execute()
+        if not res.data: return jsonify({"error": "Payment not found"}), 404
+        pay_data = res.data[0]['data']
+        pdf_bytes = Receipt_PDF_Generator(pay_data, get_seller_profile_data())
+        prefix = "Receipt" if pay_data.get('payment_type') == 'receipt' else "Payment_Voucher"
+        return send_file(pdf_bytes, mimetype="application/pdf", as_attachment=True, download_name=f"{prefix}_{payment_id[-6:]}.pdf")
+    except Exception as e: return f"Error: {e}", 500
+
+@app.route('/email-receipt/<path:payment_id>', methods=['POST'])
+@login_required
+@limiter.limit("10 per minute")
+def email_receipt_route(payment_id):
+    try:
+        payment_id = unquote(payment_id)
+        res = supabase.table('payments').select('data').eq('tenant_id', get_tenant_id()).eq('payment_id', payment_id).execute()
+        if not res.data: return jsonify({"error": "Payment not found"}), 404
+        pay_data = res.data[0]['data']
+        
+        party_name = pay_data.get('party_name')
+        client_email = None
+        
+        # Look up email from clients database
+        for cname, cdata in load_clients().items():
+            if cname.lower() == party_name.lower():
+                client_email = cdata.get('email')
+                break
+        
+        # Fallback: Look up from past invoices
+        if not client_email:
+            for inv in load_invoices():
+                if inv.get('client_name', '').lower() == party_name.lower() and inv.get('client_email'):
+                    client_email = inv.get('client_email')
+                    break
+                    
+        if not client_email: return jsonify({"error": f"No email address found on file for '{party_name}'."}), 400
+        
+        profile = get_seller_profile_data()
+        is_receipt = pay_data.get('payment_type') == 'receipt'
+        doc_type = "Receipt" if is_receipt else "Payment Voucher"
+        
+        subject = f"{doc_type} from {profile.get('company_name','SM Tech')}"
+        body = f"Dear {party_name},\n\nPlease find attached the {doc_type} for Rs. {pay_data.get('amount')} dated {pay_data.get('payment_date')}.\n\nRegards,\n{profile.get('company_name','SM Tech')}"
+        
+        pdf_bytes = Receipt_PDF_Generator(pay_data, profile)
+        send_email_with_attachment(client_email, subject, body, pdf_bytes, f"{doc_type}_{payment_id[-6:]}.pdf")
+        
+        return jsonify({"message": f"{doc_type} emailed successfully to {client_email}!"})
+    except Exception as e: return jsonify({"error": str(e)}), 500
+
 @app.route('/generate-credit-note/<path:bill_no>', methods=['GET'])
 @login_required
 def generate_credit_note(bill_no):
@@ -1249,7 +1323,10 @@ def generate_credit_note(bill_no):
         orig = next((inv for inv in invoices if inv['bill_no'] == bill_no), None)
         if not orig: return jsonify({"error": "Original Invoice not found"}), 404
 
-        cn_no = f"{get_seller_profile_data().get('invoice_prefix', 'TE').upper()}-CN/2025-26/{get_next_counter(is_credit_note=True):04d}"
+        now = date.today()
+        fy_str = f"{now.year}-{str(now.year + 1)[-2:]}" if now.month >= 4 else f"{now.year - 1}-{str(now.year)[-2:]}"
+        count = sum(1 for d in invoices if d.get('is_credit_note') and fy_str in d.get('bill_no', '')) + 1
+        cn_no = f"{get_seller_profile_data().get('invoice_prefix', 'TE').upper()}-CN/{fy_str}/{count:03d}"
         cn_data = orig.copy()
         cn_data.update({"bill_no": cn_no, "original_invoice_no": bill_no, "invoice_date": date.today().strftime('%d-%b-%Y'), "is_credit_note": True, "sub_total": -abs(orig.get('sub_total', 0)), "igst": -abs(orig.get('igst', 0)), "cgst": -abs(orig.get('cgst', 0)), "sgst": -abs(orig.get('sgst', 0)), "grand_total": -abs(orig.get('grand_total', 0)), "qtys": [-abs(float(q)) for q in orig.get('qtys', [])], "amounts": [-abs(float(a)) for a in orig.get('amounts', [])], "line_tax_amounts": [-abs(float(t)) for t in orig.get('line_tax_amounts', [])], "line_total_amounts": [-abs(float(t)) for t in orig.get('line_total_amounts', [])]})
         
@@ -1305,13 +1382,17 @@ def handle_payments():
         party, amt = data.get('party_name', '').strip(), float(data.get('amount', 0))
         if not party or amt <= 0: return jsonify({"error": "Party name and amount required"}), 400
         
-        pay_id = f"{party}_{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
+        pay_id = data.get('payment_id')
+        if not pay_id: pay_id = f"{party}_{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
+        
         entry = {
             "payment_id": pay_id, "party_name": party, "amount": amt, "payment_type": data.get('payment_type', 'receipt'),
             "mode": data.get('mode', 'Cash'), "ref_invoice": data.get('ref_invoice', ''), "notes": data.get('notes', ''),
-            "payment_date": data.get('payment_date', date.today().strftime('%d-%b-%Y')), "timestamp": datetime.now().isoformat(), "created_by": current_user.id
+            "payment_date": data.get('payment_date', date.today().strftime('%d-%b-%Y')), "timestamp": data.get('timestamp', datetime.now().isoformat()), "created_by": current_user.id
         }
-        supabase.table('payments').insert({'tenant_id': tenant, 'payment_id': pay_id, 'data': entry}).execute()
+        
+        # Upsert allows both Insert (new) and Update (edit)
+        supabase.table('payments').upsert({'tenant_id': tenant, 'payment_id': pay_id, 'data': entry}).execute()
 
         ref = data.get('ref_invoice')
         if ref and data.get('payment_type') == 'receipt':
@@ -1322,9 +1403,48 @@ def handle_payments():
                 tot_paid = sum(float(p['data'].get('amount',0)) for p in p_res.data if p['data'].get('ref_invoice') == ref and p['data'].get('payment_type') == 'receipt')
                 if tot_paid >= float(inv.get('grand_total', 0)):
                     inv['status'] = 'Paid'
-                    supabase.table('documents').update({'data': inv}).eq('tenant_id', tenant).eq('bill_no', ref.replace('/','_')).execute()
+                else:
+                    inv['status'] = 'Confirmed'
+                supabase.table('documents').update({'data': inv}).eq('tenant_id', tenant).eq('bill_no', ref.replace('/','_')).execute()
         return jsonify({"success": True, "payment_id": pay_id})
     except Exception as e: return jsonify({"error": str(e)}), 500
+
+@app.route('/delete-payment/<path:payment_id>', methods=['DELETE'])
+@login_required
+def delete_payment(payment_id):
+    try:
+        payment_id = unquote(payment_id)
+        tenant = get_tenant_id()
+        res = supabase.table('payments').select('data').eq('tenant_id', tenant).eq('payment_id', payment_id).execute()
+        if not res.data: return jsonify({"error": "Payment not found"}), 404
+        
+        pay_data = res.data[0]['data']
+        ref = pay_data.get('ref_invoice')
+        
+        supabase.table('payments').delete().eq('tenant_id', tenant).eq('payment_id', payment_id).execute()
+        
+        # Recalculate document status if a linked receipt was deleted
+        if ref and pay_data.get('payment_type') == 'receipt':
+            inv_res = supabase.table('documents').select('data').eq('tenant_id', tenant).eq('bill_no', ref.replace('/','_')).execute()
+            if inv_res.data:
+                inv = inv_res.data[0]['data']
+                p_res = supabase.table('payments').select('data').eq('tenant_id', tenant).execute()
+                tot_paid = sum(float(p['data'].get('amount',0)) for p in p_res.data if p['data'].get('ref_invoice') == ref and p['data'].get('payment_type') == 'receipt')
+                if tot_paid < float(inv.get('grand_total', 0)):
+                    inv['status'] = 'Confirmed'
+                    supabase.table('documents').update({'data': inv}).eq('tenant_id', tenant).eq('bill_no', ref.replace('/','_')).execute()
+        
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+def format_ledger_date(d_str):
+    if not d_str: return ""
+    try: return datetime.strptime(d_str, '%Y-%m-%d').strftime('%d-%b-%Y')
+    except: pass
+    try: return datetime.strptime(d_str, '%d-%m-%Y').strftime('%d-%b-%Y')
+    except: pass
+    return d_str
 
 @app.route('/ledger/<path:party_name>', methods=['GET'])
 @login_required
@@ -1345,19 +1465,279 @@ def party_ledger(party_name):
             cat, dtype, is_cn, amt = inv.get('doc_category', 'sale'), inv.get('doc_type', 'invoice'), inv.get('is_credit_note', False), float(inv.get('grand_total', 0))
             if cat == 'sale': dr, cr = (0, amt) if is_cn else (amt, 0)
             else: dr, cr = 0, amt
-            entries.append({"date": inv.get('invoice_date', ''), "doc_no": inv.get('bill_no', ''), "doc_type": dtype.upper(), "narration": f"{'Credit Note' if is_cn else 'Invoice'} - {inv.get('client_name','')}", "debit": dr, "credit": cr, "timestamp": inv.get('timestamp', '')})
+            
+            narr = f"{'Credit Note' if is_cn else 'Sales Invoice'}"
+            if inv.get('po_number'): narr += f" (PO: {inv.get('po_number')})"
+            
+            entries.append({"date": format_ledger_date(inv.get('invoice_date', '')), "doc_no": inv.get('bill_no', ''), "doc_type": dtype.upper(), "narration": narr, "debit": dr, "credit": cr, "timestamp": inv.get('timestamp', '')})
 
         for pay in payments:
             ptype, amt = pay.get('payment_type', 'receipt'), float(pay.get('amount', 0))
-            entries.append({"date": pay.get('payment_date', ''), "doc_no": pay.get('payment_id', ''), "doc_type": "RECEIPT" if ptype == 'receipt' else "PAYMENT", "narration": f"Payment {pay.get('mode','')}" + (f" - Ref: {pay.get('ref_invoice','')}" if pay.get('ref_invoice') else ''), "debit": 0, "credit": amt if ptype == 'receipt' else 0, "timestamp": pay.get('timestamp', '')})
+            pid = pay.get('payment_id', '')
+            short_doc = f"RCPT-{pid[-6:]}" if ptype == 'receipt' else f"PAY-{pid[-6:]}"
+            narr = f"{'Receipt' if ptype == 'receipt' else 'Payment'} via {pay.get('mode', 'Cash')}"
+            if pay.get('ref_invoice'): narr += f" against {pay.get('ref_invoice')}"
+            
+            entries.append({"date": format_ledger_date(pay.get('payment_date', '')), "doc_no": short_doc, "doc_type": "RECEIPT" if ptype == 'receipt' else "PAYMENT", "narration": narr, "debit": 0, "credit": amt if ptype == 'receipt' else 0, "timestamp": pay.get('timestamp', '')})
 
-        entries.sort(key=lambda x: x.get('timestamp', ''))
+        entries.sort(key=lambda x: x.get('timestamp', '') or '')
         running = 0.0
         for e in entries:
             running += e['debit'] - e['credit']
             e['balance'] = round(running, 2)
         return jsonify({"party_name": party_name, "entries": entries, "closing_balance": round(running, 2)})
     except Exception as e: return jsonify({"error": str(e)}), 500
+
+@app.route('/download-ledger/<path:party_name>', methods=['GET'])
+@login_required
+def download_ledger_pdf(party_name):
+    try:
+        party_name = unquote(party_name)
+        invoices = load_invoices()
+        party_invoices = [i for i in invoices if i.get('client_name', '').strip().lower() == party_name.strip().lower()]
+        tenant = get_tenant_id()
+        try:
+            p_res = supabase.table('payments').select('data').eq('tenant_id', tenant).execute()
+            payments = [p['data'] for p in p_res.data if p['data'].get('party_name', '').lower() == party_name.lower()]
+        except: payments = []
+
+        entries = []
+        for inv in party_invoices:
+            cat, dtype, is_cn, amt = inv.get('doc_category', 'sale'), inv.get('doc_type', 'invoice'), inv.get('is_credit_note', False), float(inv.get('grand_total', 0))
+            if cat == 'sale': dr, cr = (0, amt) if is_cn else (amt, 0)
+            else: dr, cr = 0, amt
+            
+            narr = f"{'Credit Note' if is_cn else 'Sales Invoice'}"
+            if inv.get('po_number'): narr += f" (PO: {inv.get('po_number')})"
+            
+            entries.append({"date": format_ledger_date(inv.get('invoice_date', '')), "doc_no": inv.get('bill_no', ''), "doc_type": dtype.upper(), "narration": narr, "debit": dr, "credit": cr, "timestamp": inv.get('timestamp', '')})
+
+        for pay in payments:
+            ptype, amt = pay.get('payment_type', 'receipt'), float(pay.get('amount', 0))
+            pid = pay.get('payment_id', '')
+            short_doc = f"RCPT-{pid[-6:]}" if ptype == 'receipt' else f"PAY-{pid[-6:]}"
+            narr = f"{'Receipt' if ptype == 'receipt' else 'Payment'} via {pay.get('mode', 'Cash')}"
+            if pay.get('ref_invoice'): narr += f" against {pay.get('ref_invoice')}"
+            
+            entries.append({"date": format_ledger_date(pay.get('payment_date', '')), "doc_no": short_doc, "doc_type": "RECEIPT" if ptype == 'receipt' else "PAYMENT", "narration": narr, "debit": 0, "credit": amt if ptype == 'receipt' else 0, "timestamp": pay.get('timestamp', '')})
+
+        entries.sort(key=lambda x: x.get('timestamp', '') or '')
+        running = 0.0
+
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.add_font("Calibri", "", CALIBRI_FONT_PATH, uni=True)
+        pdf.add_font("Calibri", "B", CALIBRI_FONT_PATH, uni=True)
+        profile = get_seller_profile_data()
+        
+        # Insert Logo if available
+        logo_data = profile.get('logo_base64')
+        if logo_data:
+            try:
+                if "," in logo_data: logo_data = logo_data.split(",")[1]
+                img_bytes = base64.b64decode(logo_data)
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+                    with Image.open(io.BytesIO(img_bytes)) as pil_img:
+                        pil_img.save(tmp, format="PNG")
+                    tmp_path = tmp.name
+                pdf.image(tmp_path, x=10, y=8, w=25)
+                os.unlink(tmp_path)
+            except Exception:
+                pass
+        
+        pdf.set_font("Calibri", "B", 16)
+        pdf.cell(0, 8, f"Party Ledger: {party_name}", ln=True, align='C')
+        pdf.set_font("Calibri", "", 10)
+        pdf.cell(0, 5, f"Company: {profile.get('company_name', 'SM Tech')}", ln=True, align='C')
+        pdf.cell(0, 5, f"Generated On: {date.today().strftime('%d-%b-%Y')}", ln=True, align='C')
+        pdf.ln(10)
+
+        def print_table_header():
+            pdf.set_font("Calibri", "B", 9)
+            pdf.set_fill_color(220, 220, 220)
+            pdf.cell(20, 8, "Date", 1, 0, 'C', True)
+            pdf.cell(45, 8, "Doc No", 1, 0, 'C', True)
+            pdf.cell(55, 8, "Narration", 1, 0, 'C', True)
+            pdf.cell(22, 8, "Debit (Dr)", 1, 0, 'R', True)
+            pdf.cell(22, 8, "Credit (Cr)", 1, 0, 'R', True)
+            pdf.cell(26, 8, "Balance", 1, 1, 'R', True)
+            pdf.set_font("Calibri", "", 8)
+
+        print_table_header()
+        
+        for e in entries:
+            running += e['debit'] - e['credit']
+            bal_str = f"{abs(running):.2f} {'Dr' if running>0 else ('Cr' if running<0 else '')}"
+            
+            # Predict row height based on text width to avoid page break overlap
+            text = e['narration']
+            words = text.split()
+            lines = 1
+            current_line = ""
+            for w in words:
+                if pdf.get_string_width(current_line + w + " ") > 53:
+                    lines += 1
+                    current_line = w + " "
+                else:
+                    current_line += w + " "
+            
+            row_h = max(lines * 5, 8)
+            
+            # Trigger Manual Page Break if row won't fit
+            if pdf.get_y() + row_h > 280:
+                pdf.add_page()
+                print_table_header()
+            
+            start_y = pdf.get_y()
+            start_x = pdf.get_x()
+            
+            # Draw standard cells
+            pdf.cell(20, row_h, e['date'], 1, 0, 'C')
+            
+            # Scale down Doc No if too long
+            doc_str = e['doc_no']
+            if pdf.get_string_width(doc_str) > 43:
+                pdf.set_font("Calibri", "", 7)
+            pdf.cell(45, row_h, doc_str, 1, 0, 'C')
+            pdf.set_font("Calibri", "", 8)
+            
+            # Skip over Narration block horizontally
+            pdf.set_x(start_x + 65 + 55)
+            
+            pdf.cell(22, row_h, f"{e['debit']:.2f}" if e['debit']>0 else "-", 1, 0, 'R')
+            pdf.cell(22, row_h, f"{e['credit']:.2f}" if e['credit']>0 else "-", 1, 0, 'R')
+            pdf.cell(26, row_h, bal_str, 1, 0, 'R')
+            
+            # Reposition and draw MultiCell Narration inside the blank gap
+            # Center the text vertically within the box
+            y_offset = (row_h - (lines * 5)) / 2
+            pdf.set_xy(start_x + 65, start_y + y_offset)
+            pdf.multi_cell(55, 5, text, 0, 'L')
+            
+            # Draw borders for Narration block explicitly
+            pdf.rect(start_x + 65, start_y, 55, row_h)
+            
+            # Advance Y cursor securely to the next row
+            pdf.set_y(start_y + row_h)
+
+        pdf.ln(5)
+        pdf.set_font("Calibri", "B", 10)
+        final_bal = f"{abs(running):.2f} {'Dr' if running>0 else ('Cr' if running<0 else '')}"
+        pdf.cell(0, 8, f"Closing Balance: Rs. {final_bal}", 0, 1, 'R')
+
+        pdf_bytes = io.BytesIO(pdf.output(dest="S").encode("latin-1"))
+        return send_file(pdf_bytes, mimetype="application/pdf", as_attachment=True, download_name=f"Ledger_{party_name.replace(' ','_')}.pdf")
+    except Exception as e:
+        return f"Error generating PDF: {str(e)}", 500
+
+def Receipt_PDF_Generator(payment_data, profile):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.add_font("Calibri", "", CALIBRI_FONT_PATH, uni=True)
+    pdf.add_font("Calibri", "B", CALIBRI_FONT_PATH, uni=True)
+    pdf.add_font("Calibri", "I", CALIBRI_FONT_PATH, uni=True)
+    
+    margin, page_width = 15, pdf.w - 30
+    
+    is_receipt = payment_data.get('payment_type') == 'receipt'
+    color = (34, 197, 94) if is_receipt else (239, 68, 68) 
+    
+    # Colored header band (Reduced height)
+    pdf.set_fill_color(*color)
+    pdf.rect(0, 0, pdf.w, 28, 'F')
+    
+    logo_data = profile.get('logo_base64')
+    if logo_data:
+        try:
+            if "," in logo_data: logo_data = logo_data.split(",")[1]
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+                with Image.open(io.BytesIO(base64.b64decode(logo_data))) as pil_img:
+                    pil_img.save(tmp, format="PNG")
+                tmp_path = tmp.name
+            pdf.image(tmp_path, x=15, y=6, h=16)
+            os.unlink(tmp_path)
+        except Exception: pass
+
+    pdf.set_y(9)
+    pdf.set_font("Calibri", "B", 22)
+    pdf.set_text_color(255, 255, 255)
+    title = "RECEIPT VOUCHER" if is_receipt else "PAYMENT VOUCHER"
+    pdf.cell(page_width, 10, title, ln=True, align='R')
+    
+    # Company Details
+    pdf.set_y(38)
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("Calibri", "B", 18)
+    pdf.cell(page_width, 8, profile.get('company_name', 'SM Tech'), ln=True, align='C')
+    pdf.set_font("Calibri", "", 10)
+    
+    address_lines = []
+    if profile.get('address_1'): address_lines.append(profile.get('address_1'))
+    if profile.get('address_2'): address_lines.append(profile.get('address_2'))
+    if address_lines: pdf.cell(page_width, 5, ", ".join(address_lines), ln=True, align='C')
+    
+    contact_lines = []
+    if profile.get('phone'): contact_lines.append(f"Phone: {profile.get('phone')}")
+    if profile.get('email'): contact_lines.append(f"Email: {profile.get('email')}")
+    if contact_lines: pdf.cell(page_width, 5, " | ".join(contact_lines), ln=True, align='C')
+    
+    pdf.ln(12)
+    
+    # Clean Box Layout for Voucher
+    pdf.set_font("Calibri", "B", 12)
+    pdf.set_fill_color(245, 245, 245)
+    pdf.cell(page_width, 10, "  TRANSACTION DETAILS", border=1, ln=1, align='L', fill=True)
+    
+    pdf.set_font("Calibri", "B", 11)
+    pdf.cell(40, 10, "  Voucher No:", border='L')
+    pdf.set_font("Calibri", "", 11)
+    pdf.cell(page_width - 40, 10, payment_data.get('payment_id')[-6:], border='R', ln=1)
+    
+    pdf.set_font("Calibri", "B", 11)
+    pdf.cell(40, 10, "  Date:", border='L')
+    pdf.set_font("Calibri", "", 11)
+    pdf.cell(page_width - 40, 10, payment_data.get('payment_date'), border='R', ln=1)
+    
+    pdf.set_font("Calibri", "B", 11)
+    pdf.cell(40, 10, "  Party Name:", border='L')
+    pdf.set_font("Calibri", "B", 12)
+    pdf.cell(page_width - 40, 10, payment_data.get('party_name'), border='R', ln=1)
+
+    pdf.set_font("Calibri", "B", 11)
+    pdf.cell(40, 10, "  Payment Mode:", border='L')
+    pdf.set_font("Calibri", "", 11)
+    pdf.cell(page_width - 40, 10, payment_data.get('mode', 'Cash'), border='R', ln=1)
+
+    pdf.set_font("Calibri", "B", 11)
+    pdf.cell(40, 10, "  Ref Invoice:", border='L')
+    pdf.set_font("Calibri", "", 11)
+    pdf.cell(page_width - 40, 10, payment_data.get('ref_invoice', 'N/A') or 'N/A', border='R', ln=1)
+
+    pdf.set_font("Calibri", "B", 11)
+    pdf.cell(40, 10, "  Amount:", border='L')
+    pdf.set_font("Calibri", "B", 14)
+    amt = float(payment_data.get('amount', 0))
+    pdf.cell(page_width - 40, 10, f"Rs. {amt:,.2f}", border='R', ln=1)
+    
+    pdf.cell(page_width, 0, "", border='T', ln=1)
+    
+    pdf.ln(5)
+    pdf.set_font("Calibri", "I", 11)
+    pdf.multi_cell(page_width, 6, f"Amount in words: Rupees {convert_to_words(amt)}.")
+    
+    if payment_data.get('notes'):
+        pdf.ln(5)
+        pdf.set_font("Calibri", "B", 11)
+        pdf.cell(15, 6, "Notes: ")
+        pdf.set_font("Calibri", "", 11)
+        pdf.multi_cell(0, 6, payment_data.get('notes'))
+
+    pdf.ln(25)
+    pdf.set_font("Calibri", "I", 10)
+    pdf.set_text_color(150, 150, 150)
+    pdf.cell(0, 10, "This is a computer-generated voucher and does not require a physical signature.", align='C')
+    
+    return io.BytesIO(pdf.output(dest="S").encode("latin-1"))
 
 @app.route('/outstanding', methods=['GET'])
 @login_required
