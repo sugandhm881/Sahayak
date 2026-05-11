@@ -1,348 +1,376 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dashboard - {{ profile.get('company_name', 'Sahayak ERP') }}</title>
-<link rel="icon" href="/static/sayahak_logo_2.5.png" type="image/png">
-<script src="https://cdn.tailwindcss.com"></script>
+<title>Dashboard — {{ profile.get('company_name', 'Sahayak ERP') }}</title>
+{% include "_shell_head.html" %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.default.min.css" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
-
 <style>
-    .stat-card { transition: transform 0.2s, box-shadow 0.2s; }
-    .stat-card:hover { transform: translateY(-3px); box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
-    .tab-btn.active { border-bottom: 3px solid #f97316; color: #f97316; font-weight: 700; }
-    .status-badge { font-size: 10px; padding: 2px 8px; border-radius: 999px; font-weight: 700; }
-    .status-Draft     { background:#f3f4f6; color:#6b7280; border:1px solid #e5e7eb; }
-    .status-Confirmed { background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; }
-    .status-Paid      { background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; }
-    .status-Cancelled { background:#fef2f2; color:#dc2626; border:1px solid #fecaca; }
-    .age-0  { color:#16a34a; }
-    .age-30 { color:#d97706; }
-    .age-60 { color:#ea580c; }
-    .age-90 { color:#dc2626; font-weight:700; }
-    
-    /* Tom Select Customization for Dashboard */
-    .ts-wrapper .ts-control { border-radius: 0.5rem; padding: 0.5rem 0.75rem; border-color: #e5e7eb; font-size: 0.875rem; min-height: 38px; background: #fff;}
-    .ts-wrapper.focus .ts-control { border-color: #fbd38d; box-shadow: 0 0 0 2px rgba(251, 146, 60, 0.2); }
-    .ts-dropdown { border-radius: 0.5rem; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
-    
-    /* Fix Dropdown Width & Truncation */
-    .ts-wrapper.single .ts-control { padding-right: 2.5rem !important; }
-    .ts-wrapper.single .ts-control .item { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; display: block; }
+  /* Dashboard-specific status pills */
+  .status-badge { font-size: 10px; padding: 3px 10px; border-radius: 999px; font-weight: 700; border: 1px solid transparent; }
+  .status-Draft     { background:#f3f4f6; color:#6b7280; border-color:#e5e7eb; }
+  .status-Confirmed { background:#eff6ff; color:#2563eb; border-color:#bfdbfe; }
+  .status-Paid      { background:#f0fdf4; color:#16a34a; border-color:#bbf7d0; }
+  .status-Cancelled { background:#fef2f2; color:#dc2626; border-color:#fecaca; }
+  .age-0  { color:#16a34a; }
+  .age-30 { color:#d97706; }
+  .age-60 { color:#ea580c; }
+  .age-90 { color:#dc2626; font-weight:700; }
+
+  /* Tom Select styling aligned with design system */
+  .ts-wrapper .ts-control { border-radius: var(--radius-sm); padding: 8px 12px; border-color: var(--border); font-size: 13px; min-height: 38px; background: var(--surface); }
+  .ts-wrapper.focus .ts-control { border-color: #93c5fd; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12); }
+  .ts-dropdown { border-radius: var(--radius-sm); box-shadow: var(--shadow-lg); border-color: var(--border); }
+  .ts-wrapper.single .ts-control { padding-right: 2.2rem !important; }
+  .ts-wrapper.single .ts-control .item { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; display: block; }
+
+  /* Action icon buttons in tables */
+  .ico-btn { background:none; border:none; padding:4px; cursor:pointer; color:var(--ink-3); transition:var(--transition); }
+  .ico-btn svg { width:15px; height:15px; display:block; }
+  .ico-btn:hover { color:var(--ink); }
+  .ico-edit:hover { color:var(--accent-purchase); }
+  .ico-download:hover { color:var(--accent-purchase-dark); }
+  .ico-mail:hover { color:var(--green-dark); }
+  .ico-pay:hover { color:var(--accent-sale); }
+  .ico-convert:hover { color:var(--purple); }
+  .ico-delete:hover { color:var(--red-dark); }
+
+  .age-card {
+    border-radius: var(--radius);
+    padding: 12px;
+    text-align: center;
+    border: 1px solid transparent;
+  }
+  .age-card .age-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+  .age-card .age-val { font-size: 18px; font-weight: 800; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .age-green { background: var(--green-light); border-color: #a7f3d0; color: var(--green-dark); }
+  .age-yellow { background: #fefce8; border-color: #fde68a; color: #a16207; }
+  .age-orange { background: var(--accent-sale-light); border-color: #fed7aa; color: var(--accent-sale-dark); }
+  .age-red { background: var(--red-light); border-color: #fca5a5; color: var(--red-dark); }
 </style>
 </head>
-<body class="bg-gray-100 font-sans">
+<body>
+{% set active_nav = 'dashboard' %}
+{% set page_title = 'Dashboard' %}
+{% set page_sub = 'Overview · KPIs · Documents · Outstanding · Payments · Ledger' %}
+{% include "_shell_start.html" %}
 
-<div class="bg-white shadow-sm border-b sticky top-0 z-40">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-col md:flex-row items-center justify-between gap-4">
-        <div class="flex items-center gap-4 w-full md:w-auto justify-center md:justify-start">
-            {% if profile.get('logo_base64') %}
-                <img src="data:image/png;base64,{{ profile.logo_base64 }}" class="h-10 object-contain">
-            {% endif %}
-            <div class="text-center md:text-left">
-                <h1 class="font-extrabold text-gray-800 text-lg leading-none">
-                    {% if profile.get('company_name') and profile.get('company_name') not in ['SM Tech', 'Sahayak ERP'] %}
-                        {{ profile.get('company_name') }}
-                    {% else %}
-                        <span class="text-orange-500 text-[115%]">सहा</span>Yak <span class="text-gray-500 text-sm tracking-wide ml-0.5">ERP</span>
-                    {% endif %}
-                </h1>
-                <p class="text-xs text-gray-400 tracking-widest mt-1">ERP DASHBOARD</p>
-            </div>
-        </div>
-
-        <div class="flex flex-wrap items-center justify-center gap-2 md:gap-3 w-full md:w-auto">
-            {% if current_user.is_master %}
-            <div class="flex items-center gap-2 w-full md:w-auto mb-2 md:mb-0">
-                <span class="text-[10px] font-bold text-gray-400 tracking-wider whitespace-nowrap">VIEW AS</span>
-                <div style="min-width: 200px; flex: 1;">
-                    <select id="view_as_select" class="w-full text-sm">
-                        {% for u in all_users %}
-                            <option value="{{ u }}" {% if viewing_user == u %}selected{% endif %}>
-                                {{ u }}{% if u == current_user.id %} (Me){% endif %}
-                            </option>
-                        {% endfor %}
-                    </select>
-                </div>
-            </div>
-            {% endif %}
-            <a href="/home" class="flex-1 md:flex-none text-center px-4 py-2 bg-orange-500 text-white text-sm font-bold rounded-lg hover:bg-orange-600 transition flex items-center justify-center gap-1.5">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                New Doc
-            </a>
-            <a href="/profile" class="flex-1 md:flex-none text-center px-4 py-2 bg-white border border-gray-200 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition">Settings</a>
-            <a href="/logout" class="flex-1 md:flex-none text-center px-4 py-2 border border-red-200 text-red-500 text-sm font-semibold rounded-lg hover:bg-red-50 transition">Logout</a>
-        </div>
-    </div>
+<div class="stat-grid" id="kpiCards">
+  <div class="stat">
+    <div class="stat-label">Today's Sales</div>
+    <div class="stat-value">₹<span id="kpi_today_sales">--</span></div>
+    <div class="stat-sub">This month: ₹<span id="kpi_month_sales">--</span></div>
+  </div>
+  <div class="stat info">
+    <div class="stat-label">Today's Purchase</div>
+    <div class="stat-value">₹<span id="kpi_today_purchase">--</span></div>
+    <div class="stat-sub">This month: ₹<span id="kpi_month_purchase">--</span></div>
+  </div>
+  <div class="stat warn" onclick="switchTab('outstanding')" style="cursor:pointer;">
+    <div class="stat-label">Outstanding</div>
+    <div class="stat-value" style="color:var(--accent-sale-dark);">₹<span id="kpi_outstanding_total">--</span></div>
+    <div class="stat-sub"><span id="kpi_outstanding_count">--</span> unpaid invoices</div>
+  </div>
+  <div class="stat danger" id="lowStockCard">
+    <div class="stat-label">Low Stock Items</div>
+    <div class="stat-value" style="color:var(--red-dark);"><span id="kpi_low_stock">--</span></div>
+    <div class="stat-sub">Below reorder level</div>
+  </div>
 </div>
 
-<div class="max-w-7xl mx-auto px-4 sm:px-6 py-6">
-
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6" id="kpiCards">
-        <div class="stat-card bg-white rounded-2xl p-4 md:p-5 border border-gray-100 shadow-sm text-center md:text-left">
-            <p class="text-[10px] md:text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">Today's Sales</p>
-            <p class="text-xl md:text-2xl font-extrabold text-gray-800">₹<span id="kpi_today_sales">--</span></p>
-            <p class="text-[10px] md:text-xs text-gray-400 mt-1">This Month: ₹<span id="kpi_month_sales">--</span></p>
-        </div>
-        <div class="stat-card bg-white rounded-2xl p-4 md:p-5 border border-gray-100 shadow-sm text-center md:text-left">
-            <p class="text-[10px] md:text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">Today's Purchase</p>
-            <p class="text-xl md:text-2xl font-extrabold text-gray-800">₹<span id="kpi_today_purchase">--</span></p>
-            <p class="text-[10px] md:text-xs text-gray-400 mt-1">This Month: ₹<span id="kpi_month_purchase">--</span></p>
-        </div>
-        <div class="stat-card bg-white rounded-2xl p-4 md:p-5 border border-orange-100 shadow-sm cursor-pointer text-center md:text-left" onclick="switchTab('outstanding')">
-            <p class="text-[10px] md:text-xs text-orange-400 font-bold uppercase tracking-wider mb-1">Outstanding</p>
-            <p class="text-xl md:text-2xl font-extrabold text-orange-600">₹<span id="kpi_outstanding_total">--</span></p>
-            <p class="text-[10px] md:text-xs text-orange-400 mt-1"><span id="kpi_outstanding_count">--</span> unpaid invoices</p>
-        </div>
-        <div class="stat-card bg-white rounded-2xl p-4 md:p-5 border border-red-100 shadow-sm text-center md:text-left" id="lowStockCard">
-            <p class="text-[10px] md:text-xs text-red-400 font-bold uppercase tracking-wider mb-1">Low Stock Items</p>
-            <p class="text-xl md:text-2xl font-extrabold text-red-600"><span id="kpi_low_stock">--</span></p>
-            <p class="text-[10px] md:text-xs text-red-400 mt-1">Below reorder level</p>
-        </div>
+<div style="display:grid; grid-template-columns:2fr 1fr; gap:14px; margin-bottom:18px;" class="dash-row">
+  <div class="card">
+    <div class="card-header"><div class="card-title">Monthly Sales Trend</div></div>
+    <div class="card-body" style="height:240px;">
+      <canvas id="salesChart"></canvas>
     </div>
-
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div class="md:col-span-2 bg-white rounded-2xl p-4 md:p-5 border border-gray-100 shadow-sm">
-            <h3 class="font-bold text-gray-700 mb-3 text-sm uppercase tracking-wide">Monthly Sales Trend</h3>
-            <div class="relative w-full h-48 md:h-auto"><canvas id="salesChart"></canvas></div>
-        </div>
-        <div class="bg-white rounded-2xl p-4 md:p-5 border border-gray-100 shadow-sm">
-            <h3 class="font-bold text-gray-700 mb-3 text-sm uppercase tracking-wide">Top 5 Clients</h3>
-            <div id="topClientsList" class="space-y-3 md:space-y-2"></div>
-        </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-title">Top 5 Clients</div></div>
+    <div class="card-body">
+      <div id="topClientsList" style="display:flex; flex-direction:column; gap:10px;"></div>
     </div>
-
-    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm">
-        <div class="border-b flex overflow-x-auto custom-scrollbar">
-            <button class="tab-btn active px-4 md:px-6 py-3 md:py-4 text-xs md:text-sm text-gray-500 whitespace-nowrap" onclick="switchTab('history')" id="tab-history">📋 Document History</button>
-            <button class="tab-btn px-4 md:px-6 py-3 md:py-4 text-xs md:text-sm text-gray-500 whitespace-nowrap" onclick="switchTab('outstanding')" id="tab-outstanding">💰 Outstanding</button>
-            <button class="tab-btn px-4 md:px-6 py-3 md:py-4 text-xs md:text-sm text-gray-500 whitespace-nowrap" onclick="switchTab('payments')" id="tab-payments">🏦 Record Payment</button>
-            <button class="tab-btn px-4 md:px-6 py-3 md:py-4 text-xs md:text-sm text-gray-500 whitespace-nowrap" onclick="switchTab('ledger')" id="tab-ledger">📒 Party Ledger</button>
-        </div>
-
-        <div id="panel-history" class="p-4 md:p-5">
-            <div class="flex flex-col md:flex-row gap-3 mb-4">
-                <input type="text" id="histSearch" placeholder="Search by Doc No or Party..." class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm flex-1 focus:ring-2 focus:ring-orange-300 focus:outline-none" oninput="filterHistory()">
-                <div class="flex gap-2 w-full md:w-auto">
-                    <input type="date" id="histDateFrom" class="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm" onchange="filterHistory()">
-                    <input type="date" id="histDateTo" class="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm" onchange="filterHistory()">
-                </div>
-                
-                <div class="w-full md:w-48">
-                    <select id="histTypeFilter"></select>
-                </div>
-                <div class="w-full md:w-40">
-                    <select id="histStatusFilter">
-                        <option value="">All Statuses</option>
-                        <option value="Draft">Draft</option>
-                        <option value="Confirmed">Confirmed</option>
-                        <option value="Paid">Paid</option>
-                        <option value="Cancelled">Cancelled</option>
-                    </select>
-                </div>
-            </div>
-            
-            <div class="flex flex-wrap gap-2 mb-3">
-                <button onclick="selectAll(true)" class="flex-1 md:flex-none text-xs px-3 py-2 bg-gray-100 rounded hover:bg-gray-200 font-medium">Select All</button>
-                <button onclick="selectAll(false)" class="flex-1 md:flex-none text-xs px-3 py-2 bg-gray-100 rounded hover:bg-gray-200 font-medium">Clear</button>
-                <button onclick="downloadZip()" class="w-full md:w-auto text-xs px-3 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 font-medium">Download ZIP</button>
-                <a href="/download-report" class="flex-1 md:flex-none text-xs px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 font-medium flex items-center justify-center">Excel Report</a>
-                <button onclick="openGstrModal()" class="flex-1 md:flex-none text-xs px-3 py-2 bg-teal-600 text-white rounded hover:bg-teal-700 font-medium flex items-center justify-center">GSTR-1</button>
-            </div>
-            <div class="overflow-x-auto max-h-[500px] border rounded-xl shadow-inner">
-                <table class="w-full text-sm min-w-[800px]">
-                    <thead class="bg-gray-50 sticky top-0 z-10">
-                        <tr class="text-xs text-gray-500 uppercase tracking-wide">
-                            <th class="p-3 w-8">✓</th>
-                            <th class="p-3 text-left">Doc No</th>
-                            <th class="p-3 text-left">Date</th>
-                            <th class="p-3 text-left">Party</th>
-                            <th class="p-3 text-right">Amount</th>
-                            <th class="p-3 text-center">Status</th>
-                            <th class="p-3 text-center">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="histTableBody"></tbody>
-                </table>
-            </div>
-            <p class="text-xs text-gray-400 mt-2">Showing <span id="histCount">0</span> documents</p>
-        </div>
-
-        <div id="panel-outstanding" class="p-4 md:p-5 hidden">
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4" id="ageBuckets">
-                <div class="bg-green-50 rounded-xl p-3 border border-green-100 text-center">
-                    <p class="text-xs text-green-600 font-bold">0-30 Days</p>
-                    <p class="text-lg md:text-xl font-extrabold text-green-700">₹<span id="age0">0</span></p>
-                </div>
-                <div class="bg-yellow-50 rounded-xl p-3 border border-yellow-100 text-center">
-                    <p class="text-xs text-yellow-600 font-bold">31-60 Days</p>
-                    <p class="text-lg md:text-xl font-extrabold text-yellow-700">₹<span id="age30">0</span></p>
-                </div>
-                <div class="bg-orange-50 rounded-xl p-3 border border-orange-100 text-center">
-                    <p class="text-xs text-orange-600 font-bold">61-90 Days</p>
-                    <p class="text-lg md:text-xl font-extrabold text-orange-700">₹<span id="age60">0</span></p>
-                </div>
-                <div class="bg-red-50 rounded-xl p-3 border border-red-100 text-center">
-                    <p class="text-xs text-red-600 font-bold">90+ Days</p>
-                    <p class="text-lg md:text-xl font-extrabold text-red-700">₹<span id="age90">0</span></p>
-                </div>
-            </div>
-            <div class="overflow-x-auto border rounded-xl shadow-inner">
-                <table class="w-full text-sm min-w-[700px]">
-                    <thead class="bg-gray-50">
-                        <tr class="text-xs text-gray-500 uppercase tracking-wide">
-                            <th class="p-3 text-left">Invoice No</th>
-                            <th class="p-3 text-left">Date</th>
-                            <th class="p-3 text-left">Client</th>
-                            <th class="p-3 text-right">Invoice Amt</th>
-                            <th class="p-3 text-right">Paid</th>
-                            <th class="p-3 text-right">Balance</th>
-                            <th class="p-3 text-center">Overdue</th>
-                            <th class="p-3 text-center">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody id="outstandingTableBody"></tbody>
-                </table>
-            </div>
-        </div>
-
-        <div id="panel-payments" class="p-4 md:p-5 hidden">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="bg-gray-50 rounded-xl p-4 md:p-5 border border-gray-200">
-                    <h3 class="font-bold text-gray-800 mb-4">Record Payment / Receipt</h3>
-                    <div class="space-y-4">
-                        <div>
-                            <label class="text-xs font-bold text-gray-500 uppercase">Payment Type</label>
-                            <select id="pay_type" class="w-full">
-                                <option value="receipt">Receipt (Money Received from Client)</option>
-                                <option value="payment">Payment (Money Paid to Vendor)</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="text-xs font-bold text-gray-500 uppercase mb-1 block">Party Name</label>
-                            <select id="pay_party" class="w-full" placeholder="Search or select party..."></select>
-                        </div>
-                        <div>
-                            <label class="text-xs font-bold text-gray-500 uppercase">Amount (₹)</label>
-                            <input type="number" id="pay_amount" placeholder="0.00" class="w-full border border-gray-300 rounded-lg px-3 py-2 mt-1 text-sm focus:ring-2 focus:ring-orange-300 focus:outline-none">
-                        </div>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div>
-                                <label class="text-xs font-bold text-gray-500 uppercase">Mode</label>
-                                <select id="pay_mode" class="w-full">
-                                    <option>Cash</option>
-                                    <option>UPI</option>
-                                    <option>NEFT/RTGS</option>
-                                    <option>Cheque</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="text-xs font-bold text-gray-500 uppercase">Date</label>
-                                <input type="date" id="pay_date" class="w-full border border-gray-300 rounded-lg px-3 py-2 mt-1 text-sm focus:ring-2 focus:ring-orange-300 outline-none">
-                            </div>
-                        </div>
-                        <div>
-                            <label class="text-xs font-bold text-gray-500 uppercase">Against Invoice (Optional)</label>
-                            <input type="text" id="pay_ref" list="invoiceList" placeholder="e.g. SMT/25-26/0001" class="w-full border border-gray-300 rounded-lg px-3 py-2 mt-1 text-sm focus:ring-2 focus:ring-orange-300 outline-none">
-                            <datalist id="invoiceList"></datalist>
-                        </div>
-                        <div>
-                            <label class="text-xs font-bold text-gray-500 uppercase">Notes</label>
-                            <input type="text" id="pay_notes" placeholder="Ref No, Cheque No, etc." class="w-full border border-gray-300 rounded-lg px-3 py-2 mt-1 text-sm focus:ring-2 focus:ring-orange-300 outline-none">
-                            <input type="hidden" id="edit_payment_id" value="">
-                            <input type="hidden" id="edit_payment_ts" value="">
-                        </div>
-                        <button id="paymentSubmitBtn" onclick="submitPayment()" class="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white py-3 rounded-lg font-bold hover:from-green-600 hover:to-emerald-700 transition shadow-md mt-2">
-                            Save Payment Entry
-                        </button>
-                    </div>
-                </div>
-
-                <div>
-                    <h3 class="font-bold text-gray-800 mb-4">Recent Payments</h3>
-                    <div class="overflow-y-auto max-h-[500px] border rounded-xl shadow-inner">
-                        <table class="w-full text-sm min-w-[400px]">
-                            <thead class="bg-gray-50 sticky top-0">
-                                <tr class="text-xs text-gray-500 uppercase tracking-wide">
-                                    <th class="p-3 text-left">Date</th>
-                                    <th class="p-3 text-left">Party</th>
-                                    <th class="p-3 text-right">Amount</th>
-                                    <th class="p-3 text-center">Type</th>
-                                </tr>
-                            </thead>
-                            <tbody id="paymentsTableBody"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div id="panel-ledger" class="p-4 md:p-5 hidden">
-            <div class="mb-5 flex flex-col md:flex-row md:items-end gap-4 w-full">
-                <div class="max-w-md w-full">
-                    <label class="text-xs font-bold text-gray-500 uppercase mb-1 block">Select Party to View Ledger</label>
-                    <select id="ledgerParty" class="w-full" placeholder="Search party name..."></select>
-                </div>
-                <button id="btnDownloadLedger" onclick="downloadLedgerPDF()" class="hidden bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md hover:bg-gray-900 transition flex items-center justify-center gap-2 h-[38px]">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                    Download PDF
-                </button>
-            </div>
-
-            <div id="ledgerSummary" class="hidden mb-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div class="bg-blue-50 rounded-xl p-4 border border-blue-100 text-center">
-                    <p class="text-xs text-blue-500 font-bold uppercase">Total Debit (Dr)</p>
-                    <p class="text-xl font-extrabold text-blue-700">₹<span id="ledger_dr">0</span></p>
-                </div>
-                <div class="bg-green-50 rounded-xl p-4 border border-green-100 text-center">
-                    <p class="text-xs text-green-500 font-bold uppercase">Total Credit (Cr)</p>
-                    <p class="text-xl font-extrabold text-green-700">₹<span id="ledger_cr">0</span></p>
-                </div>
-                <div class="rounded-xl p-4 border text-center flex flex-col justify-center" id="ledger_balance_card">
-                    <p class="text-xs font-bold uppercase text-gray-500">Closing Balance</p>
-                    <p class="text-2xl font-extrabold" id="ledger_balance_text">₹0</p>
-                </div>
-            </div>
-            
-            <div class="overflow-x-auto border rounded-xl shadow-inner">
-                <table class="w-full text-sm min-w-[600px]">
-                    <thead class="bg-gray-50 sticky top-0">
-                        <tr class="text-xs text-gray-500 uppercase tracking-wide">
-                            <th class="p-3 text-left">Date</th>
-                            <th class="p-3 text-left">Document</th>
-                            <th class="p-3 text-left">Narration</th>
-                            <th class="p-3 text-right">Debit (Dr)</th>
-                            <th class="p-3 text-right">Credit (Cr)</th>
-                            <th class="p-3 text-right">Balance</th>
-                        </tr>
-                    </thead>
-                    <tbody id="ledgerTableBody">
-                        <tr><td colspan="6" class="p-8 text-center text-gray-400 italic">Select a party from the dropdown above to view their ledger.</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-    </div>
+  </div>
 </div>
 
-<div id="gstrModal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
-        <h3 class="font-bold text-xl text-gray-800 mb-2">Download GSTR-1</h3>
-        <p class="text-sm text-gray-500 mb-5">Select the month for which you want to generate the GSTR-1 Excel report.</p>
-        
-        <label class="text-xs font-bold text-gray-500 uppercase mb-1 block">Filing Month</label>
-        <select id="gstrMonthSelect" class="w-full"></select>
-        
-        <div class="flex justify-end gap-3 mt-6">
-            <button onclick="closeGstrModal()" class="px-5 py-2.5 border border-gray-300 rounded-lg text-sm font-semibold hover:bg-gray-50 transition">Cancel</button>
-            <button onclick="downloadGstr1()" class="px-5 py-2.5 bg-teal-600 text-white rounded-lg text-sm font-bold hover:bg-teal-700 shadow-md transition">Download</button>
-        </div>
+<div class="card">
+  <div class="tab-bar">
+    <button class="tab active" onclick="switchTab('history')" id="tab-history">Document History</button>
+    <button class="tab" onclick="switchTab('outstanding')" id="tab-outstanding">Outstanding</button>
+    <button class="tab" onclick="switchTab('payments')" id="tab-payments">Record Payment</button>
+    <button class="tab" onclick="switchTab('ledger')" id="tab-ledger">Party Ledger</button>
+  </div>
+
+  <div id="panel-history" class="card-body">
+    <div style="display:grid; grid-template-columns:1fr auto auto auto; gap:10px; margin-bottom:14px;" class="dash-filters">
+      <input type="text" id="histSearch" placeholder="Search by Doc No or Party…" oninput="filterHistory()">
+      <input type="date" id="histDateFrom" onchange="filterHistory()" style="min-width:140px;">
+      <input type="date" id="histDateTo" onchange="filterHistory()" style="min-width:140px;">
+      <select id="histTypeFilter" style="min-width:200px;"></select>
     </div>
+    <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+      <select id="histStatusFilter" style="min-width:160px;">
+        <option value="">All Statuses</option>
+        <option value="Draft">Draft</option>
+        <option value="Confirmed">Confirmed</option>
+        <option value="Paid">Paid</option>
+        <option value="Cancelled">Cancelled</option>
+      </select>
+      <button onclick="selectAll(true)" class="btn btn-ghost btn-sm">Select All</button>
+      <button onclick="selectAll(false)" class="btn btn-ghost btn-sm">Clear</button>
+      <button onclick="downloadZip()" class="btn btn-secondary btn-sm">Download ZIP</button>
+      <a href="/download-report" class="btn btn-success btn-sm">Excel Report</a>
+      <button onclick="openGstrModal()" class="btn btn-sm" style="background:var(--teal); color:#fff; border-color:var(--teal);">GSTR-1</button>
+      <a href="/accounts" class="btn btn-dark btn-sm">Accounts</a>
+      <span id="wfBadge" class="pill pill-purple hidden">0 pending</span>
+    </div>
+
+    <div class="table-wrap" style="max-height:540px;">
+      <table class="table">
+        <thead>
+          <tr>
+            <th style="width:32px;">✓</th>
+            <th>Doc No</th>
+            <th>Date</th>
+            <th>Party</th>
+            <th class="num">Amount</th>
+            <th style="text-align:center;">Status</th>
+            <th style="text-align:center;">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="histTableBody"></tbody>
+      </table>
+    </div>
+    <div class="text-xs text-muted mt-sm">Showing <span id="histCount">0</span> documents</div>
+  </div>
+
+  <div id="panel-outstanding" class="card-body hidden">
+    <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-bottom:14px;" id="ageBuckets">
+      <div class="age-card age-green">
+        <div class="age-label">0-30 Days</div>
+        <div class="age-val">₹<span id="age0">0</span></div>
+      </div>
+      <div class="age-card age-yellow">
+        <div class="age-label">31-60 Days</div>
+        <div class="age-val">₹<span id="age30">0</span></div>
+      </div>
+      <div class="age-card age-orange">
+        <div class="age-label">61-90 Days</div>
+        <div class="age-val">₹<span id="age60">0</span></div>
+      </div>
+      <div class="age-card age-red">
+        <div class="age-label">90+ Days</div>
+        <div class="age-val">₹<span id="age90">0</span></div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Invoice No</th>
+            <th>Date</th>
+            <th>Client</th>
+            <th class="num">Invoice Amt</th>
+            <th class="num">Paid</th>
+            <th class="num">Balance</th>
+            <th style="text-align:center;">Overdue</th>
+            <th style="text-align:center;">Action</th>
+          </tr>
+        </thead>
+        <tbody id="outstandingTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="panel-payments" class="card-body hidden">
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:18px;" class="dash-payments">
+      <div style="background:var(--surface-2); padding:18px; border-radius:var(--radius); border:1px solid var(--border);">
+        <div class="font-bold mb-md" style="font-size:14px;">Record Payment / Receipt</div>
+        <div style="display:flex; flex-direction:column; gap:12px;">
+          <div>
+            <label class="field-label">Payment Type</label>
+            <select id="pay_type">
+              <option value="receipt">Receipt (Money Received from Client)</option>
+              <option value="payment">Payment (Money Paid to Vendor)</option>
+            </select>
+          </div>
+          <div>
+            <label class="field-label">Party Name</label>
+            <select id="pay_party" data-no-enhance placeholder="Search or select party..."></select>
+          </div>
+          <div>
+            <label class="field-label">Amount (₹)</label>
+            <input type="number" id="pay_amount" placeholder="0.00">
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+            <div>
+              <label class="field-label">Mode</label>
+              <select id="pay_mode">
+                <option>Cash</option>
+                <option>UPI</option>
+                <option>NEFT/RTGS</option>
+                <option>Cheque</option>
+              </select>
+            </div>
+            <div>
+              <label class="field-label">Date</label>
+              <input type="date" id="pay_date">
+            </div>
+          </div>
+          <div>
+            <label class="field-label">Against Invoice (Optional)</label>
+            <input type="text" id="pay_ref" list="invoiceList" placeholder="e.g. SMT/25-26/0001">
+            <datalist id="invoiceList"></datalist>
+          </div>
+          <div>
+            <label class="field-label">Notes</label>
+            <input type="text" id="pay_notes" placeholder="Ref No, Cheque No, etc.">
+            <input type="hidden" id="edit_payment_id" value="">
+            <input type="hidden" id="edit_payment_ts" value="">
+          </div>
+          <div style="display:flex; gap: 8px;">
+            <button id="paymentSubmitBtn" onclick="submitPayment()" class="btn btn-success btn-lg" style="flex:1;">
+              Save Payment Entry
+            </button>
+            <button id="paymentCancelBtn" onclick="cancelEditPayment()" type="button" class="btn btn-ghost btn-lg" style="display:none;">
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="font-bold mb-md" style="font-size:14px;">Recent Payments</div>
+        <div class="table-wrap" style="max-height:540px;">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Party</th>
+                <th class="num">Amount</th>
+                <th style="text-align:center;">Type</th>
+              </tr>
+            </thead>
+            <tbody id="paymentsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="panel-ledger" class="card-body hidden">
+    <div style="display:flex; gap:12px; align-items:end; margin-bottom:16px; flex-wrap:wrap;">
+      <div style="flex:1; max-width:380px;">
+        <label class="field-label">Select Party to View Ledger</label>
+        <select id="ledgerParty" data-no-enhance placeholder="Search party name..."></select>
+      </div>
+      <button id="btnDownloadLedger" onclick="downloadLedgerPDF()" class="btn btn-dark hidden">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+        Download PDF
+      </button>
+    </div>
+
+    <div id="ledgerSummary" class="hidden" style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-bottom:14px;">
+      <div class="stat info" style="padding:12px 14px;">
+        <div class="stat-label">Total Debit (Dr)</div>
+        <div class="stat-value" style="font-size:18px; color:var(--accent-purchase-dark);">₹<span id="ledger_dr">0</span></div>
+      </div>
+      <div class="stat success" style="padding:12px 14px;">
+        <div class="stat-label">Total Credit (Cr)</div>
+        <div class="stat-value" style="font-size:18px; color:var(--green-dark);">₹<span id="ledger_cr">0</span></div>
+      </div>
+      <div class="stat" id="ledger_balance_card" style="padding:12px 14px;">
+        <div class="stat-label">Closing Balance</div>
+        <div class="stat-value" id="ledger_balance_text" style="font-size:22px;">₹0</div>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Document</th>
+            <th>Narration</th>
+            <th class="num">Debit (Dr)</th>
+            <th class="num">Credit (Cr)</th>
+            <th class="num">Balance</th>
+          </tr>
+        </thead>
+        <tbody id="ledgerTableBody">
+          <tr><td colspan="6" class="empty" style="padding:30px 20px;">Select a party from the dropdown above to view their ledger.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
 </div>
+
+<div id="gstrModal" class="modal-backdrop hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Download GSTR-1</div>
+      <button class="modal-close" onclick="closeGstrModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p class="text-sm text-muted mb-md">Select the month for which you want to generate the GSTR-1 Excel report.</p>
+      <label class="field-label">Filing Month</label>
+      <select id="gstrMonthSelect"></select>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeGstrModal()" class="btn btn-ghost">Cancel</button>
+      <button onclick="downloadGstr1()" class="btn btn-primary">Download</button>
+    </div>
+  </div>
+</div>
+
+<div id="convModal" class="modal-backdrop hidden">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="convTitle">Convert</div>
+        <div class="text-xs text-muted mt-sm">
+          <span id="convParty"></span> · Status:
+          <span id="convStatus" class="font-bold" style="color:var(--accent-sale);"></span>
+        </div>
+      </div>
+      <button class="modal-close" onclick="closeConvert()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="flex items-center gap-sm mb-md">
+        <label class="text-sm font-bold">Convert to:</label>
+        <select id="convTarget" style="max-width:160px;"></select>
+      </div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th class="num">Ordered</th>
+              <th class="num">Already Converted</th>
+              <th class="num">Pending</th>
+              <th>Qty to Convert</th>
+            </tr>
+          </thead>
+          <tbody id="convBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeConvert()" class="btn btn-ghost">Cancel</button>
+      <button onclick="doConvert()" class="btn btn-primary">Create &amp; Download</button>
+    </div>
+  </div>
+</div>
+
+<style>
+  @media (max-width: 960px) {
+    .dash-row { grid-template-columns: 1fr !important; }
+    .dash-filters { grid-template-columns: 1fr !important; }
+    .dash-payments { grid-template-columns: 1fr !important; }
+    #ageBuckets { grid-template-columns: 1fr 1fr !important; }
+  }
+</style>
 
 <script>
 const INVOICE_TYPE = "{{ profile.get('invoice_type', 'goods') }}";
@@ -360,17 +388,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (IS_SERVICE) {
         const lowStockCard = document.getElementById('lowStockCard');
         if (lowStockCard) lowStockCard.style.display = 'none';
-        const kpiGrid = document.getElementById('kpiCards');
-        if(kpiGrid) { kpiGrid.classList.remove('md:grid-cols-4'); kpiGrid.classList.add('md:grid-cols-3'); }
     }
 
     if (document.getElementById('view_as_select')) {
-        tsViewAs = new TomSelect("#view_as_select", {
-            create: false,
-            controlInput: null,
-            onChange: val => { if(val) window.location.href='/set-view-mode/'+val; }
-        });
-        // The options and selected value are automatically grabbed from the HTML!
+        // The shell renders a plain <select>, shell JS already handles navigation.
+        // We do not wrap it with TomSelect to avoid double-binding the change event.
     }
 
     let typeOptions = [{value: '', text: 'All Document Types'}];
@@ -418,17 +440,6 @@ function formatToDDMonYYYY(ymdStr) {
     return ymdStr;
 }
 
-function convertDateForInput(d) {
-  if(!d) return "";
-  const parts = d.split('-'); 
-  if(parts.length === 3 && parts[0].length === 2) {
-      const m = {Jan:"01",Feb:"02",Mar:"03",Apr:"04",May:"05",Jun:"06",Jul:"07",Aug:"08",Sep:"09",Oct:"10",Nov:"11",Dec:"12"};
-      const month = isNaN(parseInt(parts[1])) ? m[parts[1]] : parts[1];
-      return `${parts[2]}-${month}-${parts[0]}`;
-  }
-  return d;
-}
-
 async function loadDashboardData() {
     try {
         const res = await fetch('/dashboard-data');
@@ -451,7 +462,7 @@ async function loadDashboardData() {
             type: 'bar',
             data: {
                 labels,
-                datasets: [{ label: 'Sales (₹)', data: values, backgroundColor: 'rgba(249,115,22,0.7)', borderColor: '#f97316', borderWidth: 1, borderRadius: 6 }]
+                datasets: [{ label: 'Sales (₹)', data: values, backgroundColor: 'rgba(249,115,22,0.75)', borderColor: '#f97316', borderWidth: 1, borderRadius: 6 }]
             },
             options: { maintainAspectRatio: false, responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { callback: v => '₹' + fmt(v) } } } }
         });
@@ -462,8 +473,13 @@ async function loadDashboardData() {
         d.top_clients.forEach(([name, val]) => {
             const pct = Math.round((val / maxVal) * 100);
             tcEl.innerHTML += `<div>
-                <div class="flex justify-between text-xs mb-0.5"><span class="font-semibold text-gray-700 truncate max-w-[150px]">${name}</span><span class="text-gray-500">₹${fmt(val)}</span></div>
-                <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden"><div class="h-1.5 bg-orange-400 rounded-full" style="width:${pct}%"></div></div>
+                <div class="flex justify-between text-xs mb-sm" style="gap:8px;">
+                  <span class="font-bold" style="color:var(--ink-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:150px;">${name}</span>
+                  <span class="text-muted">₹${fmt(val)}</span>
+                </div>
+                <div style="height:6px; background:var(--surface-3); border-radius:999px; overflow:hidden;">
+                  <div style="height:6px; background:var(--accent-sale); border-radius:999px; width:${pct}%"></div>
+                </div>
             </div>`;
         });
     } catch(e) {}
@@ -488,7 +504,6 @@ async function loadPayments() {
 }
 
 function populateDataLists() {
-    // Case-insensitive party extraction
     const uniqueParties = new Map();
     allInvoices.forEach(i => {
         if(i.client_name && !uniqueParties.has(i.client_name.toLowerCase())) {
@@ -500,11 +515,32 @@ function populateDataLists() {
 
     const tsOptions = parties.map(p => ({value: p, text: p}));
 
-    if(payPartyTs) payPartyTs.destroy();
-    payPartyTs = new TomSelect("#pay_party", { options: tsOptions, create: true, sortField: {field: "text", direction: "asc"}, placeholder: "Select or type party name..." });
+    // Defensive destroy: if a previous TomSelect instance is attached to the
+    // underlying <select> (via local variable OR auto-enhance), tear it down
+    // before re-creating. Without this, the second call to populateDataLists
+    // (e.g. after a payment is saved) throws "TomSelect already initialised"
+    // and the dropdown silently shows blank options.
+    const tearDown = (id) => {
+      const el = document.getElementById(id);
+      if (el && el.tomselect) { try { el.tomselect.destroy(); } catch {} }
+    };
 
-    if(ledgerTs) ledgerTs.destroy();
-    ledgerTs = new TomSelect("#ledgerParty", { options: tsOptions, create: false, sortField: {field: "text", direction: "asc"}, placeholder: "Select party to view ledger...", onChange: val => { if(val) loadLedger(val); } });
+    tearDown('pay_party'); payPartyTs = null;
+    payPartyTs = new TomSelect("#pay_party", {
+      options: tsOptions, create: true,
+      sortField: { field: "text", direction: "asc" },
+      placeholder: "Select or type party name...",
+      dropdownParent: 'body',
+    });
+
+    tearDown('ledgerParty'); ledgerTs = null;
+    ledgerTs = new TomSelect("#ledgerParty", {
+      options: tsOptions, create: false,
+      sortField: { field: "text", direction: "asc" },
+      placeholder: "Select party to view ledger...",
+      dropdownParent: 'body',
+      onChange: val => { if (val) loadLedger(val); },
+    });
 
     document.getElementById('invoiceList').innerHTML = invoiceNos.map(n => `<option value="${n}">`).join('');
 }
@@ -520,18 +556,16 @@ function switchTab(tab) {
 
 function filterHistory() {
     const term = document.getElementById('histSearch').value.toLowerCase();
-    const from = document.getElementById('histDateFrom').value; 
-    const to = document.getElementById('histDateTo').value;     
+    const from = document.getElementById('histDateFrom').value;
+    const to = document.getElementById('histDateTo').value;
     const type = tsTypeFilter ? tsTypeFilter.getValue() : '';
     const status = tsStatusFilter ? tsStatusFilter.getValue() : '';
 
     const filtered = allInvoices.filter(i => {
         if (term && !i.bill_no.toLowerCase().includes(term) && !(i.client_name||'').toLowerCase().includes(term)) return false;
-        
         const actualType = i.is_credit_note ? 'cn' : (i.is_debit_note ? 'dn' : (i.doc_type || 'invoice'));
         if (type && actualType !== type) return false;
         if (status && (i.status || 'Confirmed') !== status) return false;
-        
         if (from || to) {
             let isoDate = '';
             if (i.invoice_date) {
@@ -542,7 +576,6 @@ function filterHistory() {
                     isoDate = `${p[2]}-${month}-${p[0].padStart(2, '0')}`;
                 }
             } else if (i.timestamp) isoDate = i.timestamp.split('T')[0];
-            
             if (from && isoDate < from) return false;
             if (to && isoDate > to) return false;
         }
@@ -551,11 +584,18 @@ function filterHistory() {
     renderHistoryTable(filtered);
 }
 
+function typePill(type, cat) {
+    if (cat === 'purchase') return `<span class="pill pill-purchase">${type.toUpperCase()}</span>`;
+    if (type === 'cn') return `<span class="pill pill-red">CN</span>`;
+    if (type === 'dn') return `<span class="pill pill-amber">DN</span>`;
+    return `<span class="pill pill-sale">INV</span>`;
+}
+
 function renderHistoryTable(data) {
     const tbody = document.getElementById('histTableBody');
     document.getElementById('histCount').textContent = data.length;
     if (!data.length) {
-        tbody.innerHTML = '<tr><td colspan="7" class="p-8 text-center text-gray-400">No documents found matching filters.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="empty" style="padding:36px;">No documents found matching filters.</td></tr>';
         return;
     }
     tbody.innerHTML = data.map(inv => {
@@ -563,38 +603,34 @@ function renderHistoryTable(data) {
         const type = inv.is_credit_note ? 'cn' : (inv.is_debit_note ? 'dn' : (inv.doc_type || 'invoice'));
         const status = inv.status || 'Confirmed';
 
-        let label = 'INV', color = 'bg-green-50 text-green-600 border-green-200';
-        if (cat === 'purchase') { color = 'bg-blue-100 text-blue-800 border-blue-200'; label = type.toUpperCase(); }
-        else if (type === 'cn') { label='CN'; color='bg-red-100 text-red-600 border-red-200'; }
-
         const now = new Date();
         const created = inv.timestamp ? new Date(inv.timestamp) : null;
         const canEdit = created && ((now - created) / 3600000) <= 24 && type !== 'cn' && type !== 'dn';
 
-        return `<tr class="border-b hover:bg-gray-50">
-            <td class="p-3"><input type="checkbox" class="hist-cb rounded border-gray-300 text-orange-500 focus:ring-orange-500" value="${inv.bill_no}"></td>
-            <td class="p-3 font-medium">
-                ${inv.bill_no}
-                <span class="ml-1 text-[10px] px-1.5 py-0.5 rounded border font-bold ${color}">${label}</span>
+        return `<tr>
+            <td><input type="checkbox" class="hist-cb" value="${inv.bill_no}"></td>
+            <td class="font-bold">
+                ${inv.bill_no} ${typePill(type, cat)}
             </td>
-            <td class="p-3 text-gray-500">${inv.invoice_date||'-'}</td>
-            <td class="p-3 text-gray-700 font-semibold">${inv.client_name||'-'}</td>
-            <td class="p-3 text-right font-mono font-bold text-gray-800">₹${(inv.grand_total||0).toFixed(2)}</td>
-            <td class="p-3 text-center">
-                <select onchange="updateStatus('${inv.bill_no}', this.value)" class="text-xs border rounded px-2 py-1 outline-none cursor-pointer status-badge status-${status}">
+            <td class="text-muted">${inv.invoice_date||'-'}</td>
+            <td class="font-bold">${inv.client_name||'-'}</td>
+            <td class="num font-bold">₹${(inv.grand_total||0).toFixed(2)}</td>
+            <td style="text-align:center;">
+                <select onchange="updateStatus('${inv.bill_no}', this.value)" class="status-badge status-${status}" style="cursor:pointer; border:1px solid transparent; padding:3px 10px;">
                     <option value="Draft" ${status==='Draft'?'selected':''}>Draft</option>
                     <option value="Confirmed" ${status==='Confirmed'?'selected':''}>Confirmed</option>
                     <option value="Paid" ${status==='Paid'?'selected':''}>Paid</option>
                     <option value="Cancelled" ${status==='Cancelled'?'selected':''}>Cancelled</option>
                 </select>
             </td>
-            <td class="p-3 text-center">
-                <div class="flex items-center justify-center gap-3">
-                    ${canEdit ? `<a href="/home?edit=${encodeURIComponent(inv.bill_no)}" class="text-indigo-500 hover:text-indigo-700" title="Edit"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg></a>` : ''}
-                    <button onclick="window.location.href='/download-invoice/${encodeURIComponent(inv.bill_no)}'" class="text-blue-500 hover:text-blue-700" title="Download"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg></button>
-                    <button onclick="emailSingle('${inv.bill_no}')" class="text-green-500 hover:text-green-700" title="Email"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg></button>
-                    <button onclick="quickPayment('${inv.bill_no}', '${(inv.client_name||'').replace(/'/g,"\\'")}', ${inv.grand_total||0})" class="text-orange-500 hover:text-orange-700" title="Record Payment"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path></svg></button>
-                    <button onclick="deleteInvoice('${inv.bill_no}')" class="text-red-500 hover:text-red-700" title="Delete Document"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
+            <td style="text-align:center;">
+                <div class="flex items-center" style="justify-content:center; gap:6px;">
+                    ${canEdit ? `<a href="/home?edit=${encodeURIComponent(inv.bill_no)}" class="ico-btn ico-edit" title="Edit"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></a>` : ''}
+                    <button onclick="window.location.href='/download-invoice/${encodeURIComponent(inv.bill_no)}'" class="ico-btn ico-download" title="Download"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg></button>
+                    <button onclick="emailSingle('${inv.bill_no}')" class="ico-btn ico-mail" title="Email"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg></button>
+                    <button onclick="quickPayment('${inv.bill_no}', '${(inv.client_name||'').replace(/'/g,"\\'")}', ${inv.grand_total||0})" class="ico-btn ico-pay" title="Record Payment"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg></button>
+                    ${cat === 'purchase' && (type === 'po' || type === 'grn') ? `<button onclick="openConvert('${inv.bill_no.replace(/'/g,"\\'")}', '${type}')" class="ico-btn ico-convert" title="Convert to next stage"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg></button>` : ''}
+                    <button onclick="deleteInvoice('${inv.bill_no}')" class="ico-btn ico-delete" title="Delete"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
                 </div>
             </td>
         </tr>`;
@@ -623,9 +659,7 @@ async function deleteInvoice(billNo) {
             alert('Document deleted successfully.');
             await loadInvoices();
             loadDashboardData();
-        } else {
-            alert('Error: ' + d.error);
-        }
+        } else alert('Error: ' + d.error);
     } catch(e) { alert('Network error'); }
 }
 
@@ -650,10 +684,10 @@ async function emailSingle(bno) {
 
 async function emailReceipt(pid) {
     if (!confirm(`Send voucher via email to the client?`)) return;
-    try { 
-        const r = await fetch(`/email-receipt/${encodeURIComponent(pid)}`, {method:'POST'}); 
-        const d = await r.json(); 
-        alert(d.message || d.error); 
+    try {
+        const r = await fetch(`/email-receipt/${encodeURIComponent(pid)}`, {method:'POST'});
+        const d = await r.json();
+        alert(d.message || d.error);
     } catch(e) { alert("Error sending email"); }
 }
 
@@ -669,10 +703,8 @@ function openGstrModal() {
             }
         }
     });
-    
     let options = [...months].map(m => ({value: m, text: m}));
     if (options.length === 0) options = [{value: '', text: 'No Sales Data Found'}];
-
     if(gstrTs) gstrTs.destroy();
     gstrTs = new TomSelect('#gstrMonthSelect', { options: options, create: false, placeholder: 'Select Month & Year...' });
     document.getElementById('gstrModal').classList.remove('hidden');
@@ -703,46 +735,46 @@ async function loadOutstanding() {
 
         const ageClass = {'0-30 days':'age-0','31-60 days':'age-30','61-90 days':'age-60','90+ days':'age-90'};
         document.getElementById('outstandingTableBody').innerHTML = data.map(o => `
-            <tr class="border-b hover:bg-gray-50">
-                <td class="p-3 font-medium text-gray-700">${o.bill_no}</td>
-                <td class="p-3 text-gray-500">${o.invoice_date}</td>
-                <td class="p-3 text-gray-800 font-semibold">${o.client_name}</td>
-                <td class="p-3 text-right">₹${fmt(o.grand_total)}</td>
-                <td class="p-3 text-right text-green-600">₹${fmt(o.paid)}</td>
-                <td class="p-3 text-right font-bold text-red-600">₹${fmt(o.balance)}</td>
-                <td class="p-3 text-center font-bold ${ageClass[o.age_bucket]}">${o.days_overdue}d</td>
-                <td class="p-3 text-center">
-                    <button onclick="quickPayment('${o.bill_no}','${o.client_name.replace(/'/g,"\\'")}',${o.balance})" class="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-lg font-bold hover:bg-green-200 border border-green-200 transition">Receive Pay</button>
+            <tr>
+                <td class="font-bold">${o.bill_no}</td>
+                <td class="text-muted">${o.invoice_date}</td>
+                <td class="font-bold">${o.client_name}</td>
+                <td class="num">₹${fmt(o.grand_total)}</td>
+                <td class="num" style="color:var(--green-dark);">₹${fmt(o.paid)}</td>
+                <td class="num font-bold" style="color:var(--red-dark);">₹${fmt(o.balance)}</td>
+                <td style="text-align:center;" class="font-bold ${ageClass[o.age_bucket]}">${o.days_overdue}d</td>
+                <td style="text-align:center;">
+                    <button onclick="quickPayment('${o.bill_no}','${o.client_name.replace(/'/g,"\\'")}',${o.balance})" class="btn btn-success btn-sm">Receive Pay</button>
                 </td>
-            </tr>`).join('') || '<tr><td colspan="8" class="p-8 text-center text-gray-400">No outstanding invoices. All clear! 🎉</td></tr>';
+            </tr>`).join('') || '<tr><td colspan="8" class="empty" style="padding:36px;">No outstanding invoices. All clear! 🎉</td></tr>';
     } catch(e) {}
 }
 
 function renderPaymentsTable(data) {
     const theadRow = document.querySelector('#paymentsTableBody').previousElementSibling.querySelector('tr');
     if (theadRow && theadRow.children.length === 4) {
-        theadRow.innerHTML += '<th class="p-3 text-center">Actions</th>';
+        const th = document.createElement('th');
+        th.style.textAlign = 'center';
+        th.textContent = 'Actions';
+        theadRow.appendChild(th);
     }
-
     document.getElementById('paymentsTableBody').innerHTML = data.slice(0,50).map(p => `
-        <tr class="border-b hover:bg-gray-50" style="height: 48px;">
-            <td class="px-3 py-2 text-gray-500 text-sm whitespace-nowrap">${p.payment_date||'-'}</td>
-            <td class="px-3 py-2 font-medium text-gray-700 text-sm">${p.party_name}</td>
-            <td class="px-3 py-2 text-right font-mono font-bold text-gray-800 text-sm">₹${fmt(p.amount)}</td>
-            <td class="px-3 py-2 text-center">
-                <span class="${p.payment_type==='receipt'?'bg-green-50 text-green-600 border-green-200':'bg-blue-50 text-blue-600 border-blue-200'}" style="display:inline-block; padding: 4px 10px; border-radius: 999px; font-size: 10px; font-weight: 800; text-transform: uppercase; border-width: 1px; border-style: solid; line-height: normal;">
-                    ${p.payment_type==='receipt'?'Receipt':'Payment'}
-                </span>
+        <tr>
+            <td class="text-muted" style="white-space:nowrap;">${p.payment_date||'-'}</td>
+            <td class="font-bold">${p.party_name}</td>
+            <td class="num font-bold">₹${fmt(p.amount)}</td>
+            <td style="text-align:center;">
+                <span class="pill ${p.payment_type==='receipt'?'pill-green':'pill-purchase'}">${p.payment_type==='receipt'?'Receipt':'Payment'}</span>
             </td>
-            <td class="px-3 py-2 text-center">
-                <div style="display:flex; align-items:center; justify-content:center; gap:12px;">
-                    <button onclick="editPayment('${p.payment_id}')" class="text-indigo-500 hover:text-indigo-700 transition" title="Edit Voucher"><svg style="width:16px;height:16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg></button>
-                    <button onclick="window.location.href='/download-receipt/${encodeURIComponent(p.payment_id)}'" class="text-blue-500 hover:text-blue-700 transition" title="Download PDF"><svg style="width:16px;height:16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg></button>
-                    <button onclick="emailReceipt('${p.payment_id}')" class="text-green-500 hover:text-green-700 transition" title="Email Voucher"><svg style="width:16px;height:16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg></button>
-                    <button onclick="deletePayment('${p.payment_id}')" class="text-red-500 hover:text-red-700 transition" title="Delete Voucher"><svg style="width:16px;height:16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
+            <td style="text-align:center;">
+                <div class="flex items-center" style="justify-content:center; gap:6px;">
+                    <button onclick="editPayment('${p.payment_id}')" class="ico-btn ico-edit" title="Edit"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>
+                    <button onclick="window.location.href='/download-receipt/${encodeURIComponent(p.payment_id)}'" class="ico-btn ico-download" title="Download PDF"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg></button>
+                    <button onclick="emailReceipt('${p.payment_id}')" class="ico-btn ico-mail" title="Email"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg></button>
+                    <button onclick="deletePayment('${p.payment_id}')" class="ico-btn ico-delete" title="Delete"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
                 </div>
             </td>
-        </tr>`).join('') || '<tr><td colspan="5" class="p-6 text-center text-gray-400">No payments recorded.</td></tr>';
+        </tr>`).join('') || '<tr><td colspan="5" class="empty" style="padding:36px;">No payments recorded.</td></tr>';
 }
 
 function quickPayment(billNo, partyName, balance) {
@@ -758,45 +790,46 @@ function quickPayment(billNo, partyName, balance) {
 }
 
 async function submitPayment() {
-    const party = payPartyTs ? payPartyTs.getValue() : '';
-    const amount = parseFloat(document.getElementById('pay_amount').value);
-    if (!party || !amount) return alert('Party name and amount are required.');
+    const party = payPartyTs ? payPartyTs.getValue() : '';
+    const amount = parseFloat(document.getElementById('pay_amount').value);
+    if (!party || !amount) return alert('Party name and amount are required.');
 
-    const rawDate = document.getElementById('pay_date').value;
-    const formattedDate = formatToDDMonYYYY(rawDate);
+    const rawDate = document.getElementById('pay_date').value;
+    const formattedDate = formatToDDMonYYYY(rawDate);
 
     const editId = document.getElementById('edit_payment_id').value;
     const editTs = document.getElementById('edit_payment_ts').value;
 
-    const data = {
-        party_name: party,
-        amount: amount,
-        payment_type: tsPayType ? tsPayType.getValue() : 'receipt',
-        mode: tsPayMode ? tsPayMode.getValue() : 'Cash',
-        ref_invoice: document.getElementById('pay_ref').value.trim(),
-        payment_date: formattedDate,
-        notes: document.getElementById('pay_notes').value.trim()
-    };
+    const data = {
+        party_name: party,
+        amount: amount,
+        payment_type: tsPayType ? tsPayType.getValue() : 'receipt',
+        mode: tsPayMode ? tsPayMode.getValue() : 'Cash',
+        ref_invoice: document.getElementById('pay_ref').value.trim(),
+        payment_date: formattedDate,
+        notes: document.getElementById('pay_notes').value.trim()
+    };
 
     if (editId) {
         data.payment_id = editId;
         data.timestamp = editTs;
     }
 
-    try {
-        const res = await fetch('/payments', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data)});
-        const d = await res.json();
-        if (d.success) {
-            alert('Payment saved successfully!');
-            if (payPartyTs) payPartyTs.clear();
-            ['pay_amount','pay_ref','pay_notes','edit_payment_id','edit_payment_ts'].forEach(id => document.getElementById(id).value = '');
-            document.getElementById('paymentSubmitBtn').textContent = "Save Payment Entry";
+    try {
+        const res = await fetch('/payments', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data)});
+        const d = await res.json();
+        if (d.success) {
+            alert('Payment saved successfully!');
+            if (payPartyTs) payPartyTs.clear();
+            ['pay_amount','pay_ref','pay_notes','edit_payment_id','edit_payment_ts'].forEach(id => document.getElementById(id).value = '');
+            document.getElementById('paymentSubmitBtn').textContent = "Save Payment Entry";
+            document.getElementById('paymentCancelBtn').style.display = 'none';
             setDefaultDates();
-            await loadPayments();
-            await loadInvoices();
-            loadDashboardData();
-        } else alert('Error: ' + d.error);
-    } catch(e) { alert('Network error'); }
+            await loadPayments();
+            await loadInvoices();
+            loadDashboardData();
+        } else alert('Error: ' + d.error);
+    } catch(e) { alert('Network error'); }
 }
 
 function editPayment(pid) {
@@ -804,7 +837,6 @@ function editPayment(pid) {
     if(!p) return;
     document.getElementById('edit_payment_id').value = p.payment_id;
     document.getElementById('edit_payment_ts').value = p.timestamp || '';
-    
     if (payPartyTs) {
         payPartyTs.addOption({value: p.party_name, text: p.party_name});
         payPartyTs.setValue(p.party_name);
@@ -814,7 +846,6 @@ function editPayment(pid) {
     if(tsPayMode) tsPayMode.setValue(p.mode || 'Cash');
     document.getElementById('pay_ref').value = p.ref_invoice || '';
     document.getElementById('pay_notes').value = p.notes || '';
-    
     let dVal = p.payment_date;
     if (dVal && dVal.includes('-')) {
         const parts = dVal.split('-');
@@ -824,9 +855,19 @@ function editPayment(pid) {
         }
     }
     document.getElementById('pay_date').value = dVal || '';
-    
     document.getElementById('paymentSubmitBtn').textContent = "Update Payment Entry";
+    document.getElementById('paymentCancelBtn').style.display = '';
     document.querySelector('#panel-payments').scrollIntoView({behavior:'smooth'});
+}
+
+function cancelEditPayment() {
+    if (payPartyTs) payPartyTs.clear();
+    ['pay_amount','pay_ref','pay_notes','edit_payment_id','edit_payment_ts'].forEach(id => document.getElementById(id).value = '');
+    if (tsPayType) tsPayType.setValue('receipt');
+    if (tsPayMode) tsPayMode.setValue('Cash');
+    document.getElementById('paymentSubmitBtn').textContent = "Save Payment Entry";
+    document.getElementById('paymentCancelBtn').style.display = 'none';
+    setDefaultDates();
 }
 
 async function deletePayment(pid) {
@@ -839,15 +880,12 @@ async function deletePayment(pid) {
             await loadPayments();
             await loadInvoices();
             loadDashboardData();
-        } else {
-            alert('Error: ' + d.error);
-        }
+        } else alert('Error: ' + d.error);
     } catch(e) { alert('Network error'); }
 }
 
 async function loadLedger(party) {
     if (!party) return;
-
     try {
         const res = await fetch(`/ledger/${encodeURIComponent(party)}`);
         const data = await res.json();
@@ -858,24 +896,26 @@ async function loadLedger(party) {
         tbody.innerHTML = data.entries.map(e => {
             totalDr += e.debit;
             totalCr += e.credit;
-            const balColor = e.balance > 0 ? 'text-red-600' : e.balance < 0 ? 'text-green-600' : 'text-gray-500';
-            return `<tr class="border-b hover:bg-gray-50 text-sm">
-                <td class="p-3 text-gray-500">${e.date}</td>
-                <td class="p-3 font-mono text-xs text-gray-600 font-bold">${e.doc_no}</td>
-                <td class="p-3 text-gray-700">${e.narration}</td>
-                <td class="p-3 text-right ${e.debit>0?'text-red-600 font-semibold':'text-gray-300'}">${e.debit>0?'₹'+fmt(e.debit):'-'}</td>
-                <td class="p-3 text-right ${e.credit>0?'text-green-600 font-semibold':'text-gray-300'}">${e.credit>0?'₹'+fmt(e.credit):'-'}</td>
-                <td class="p-3 text-right font-bold ${balColor}">₹${fmt(Math.abs(e.balance))} ${e.balance>0?'Dr':e.balance<0?'Cr':''}</td>
+            const balColor = e.balance > 0 ? 'color:var(--red-dark)' : e.balance < 0 ? 'color:var(--green-dark)' : 'color:var(--ink-3)';
+            return `<tr>
+                <td class="text-muted">${e.date}</td>
+                <td class="font-bold" style="font-family:'JetBrains Mono',monospace; font-size:12px;">${e.doc_no}</td>
+                <td>${e.narration}</td>
+                <td class="num" style="${e.debit>0?'color:var(--red-dark); font-weight:600;':'color:var(--ink-4);'}">${e.debit>0?'₹'+fmt(e.debit):'-'}</td>
+                <td class="num" style="${e.credit>0?'color:var(--green-dark); font-weight:600;':'color:var(--ink-4);'}">${e.credit>0?'₹'+fmt(e.credit):'-'}</td>
+                <td class="num font-bold" style="${balColor}">₹${fmt(Math.abs(e.balance))} ${e.balance>0?'Dr':e.balance<0?'Cr':''}</td>
             </tr>`;
-        }).join('') || '<tr><td colspan="6" class="p-6 text-center text-gray-400">No transactions found for this party.</td></tr>';
+        }).join('') || '<tr><td colspan="6" class="empty" style="padding:30px 20px;">No transactions found for this party.</td></tr>';
 
         document.getElementById('ledger_dr').textContent = fmt(totalDr);
         document.getElementById('ledger_cr').textContent = fmt(totalCr);
         const closing = data.closing_balance;
-        document.getElementById('ledger_balance_text').textContent = `₹${fmt(Math.abs(closing))} ${closing>0?'Dr':closing<0?'Cr':''}`;
+        const bt = document.getElementById('ledger_balance_text');
+        bt.textContent = `₹${fmt(Math.abs(closing))} ${closing>0?'Dr':closing<0?'Cr':''}`;
+        bt.style.color = closing > 0 ? 'var(--red-dark)' : closing < 0 ? 'var(--green-dark)' : 'var(--ink)';
         const bc = document.getElementById('ledger_balance_card');
-        bc.className = `rounded-xl p-4 border text-center flex flex-col justify-center ${closing>0?'bg-red-50 border-red-100':'bg-green-50 border-green-100'}`;
-        document.getElementById('ledger_balance_text').className = `text-2xl font-extrabold ${closing>0?'text-red-600':'text-green-600'}`;
+        bc.classList.remove('success', 'danger', 'info', 'warn');
+        bc.classList.add(closing > 0 ? 'danger' : 'success');
         document.getElementById('ledgerSummary').classList.remove('hidden');
         document.getElementById('btnDownloadLedger').classList.remove('hidden');
     } catch(e) { alert('Error loading ledger'); }
@@ -891,6 +931,108 @@ function fmt(n) {
     if (n === undefined || n === null) return '--';
     return parseFloat(n).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
 }
+
+// ---------------- Workflow conversion (PO -> GRN -> Bill) ----------------
+
+let convertState = null;
+
+async function openConvert(billNo, fromType) {
+    try {
+        const r = await fetch(`/v2/doc/${encodeURIComponent(billNo)}/pending`).then(r => r.json());
+        if (r.error) return alert(r.error);
+        if (r.status === 'Closed') return alert('All lines already fully converted.');
+        convertState = { bill_no: billNo, from_type: fromType, pending: r };
+        document.getElementById('convTitle').textContent = `Convert ${fromType.toUpperCase()} ${billNo}`;
+        document.getElementById('convParty').textContent = r.client_name || '-';
+        document.getElementById('convStatus').textContent = r.status;
+        const nextOptions = fromType === 'po' ? ['grn', 'bill'] : ['bill'];
+        document.getElementById('convTarget').innerHTML = nextOptions.map(t =>
+            `<option value="${t}">${t.toUpperCase()}</option>`).join('');
+        const rows = r.lines.map((l, i) => `
+            <tr>
+              <td>${l.particular}</td>
+              <td class="num">${l.qty_ordered}</td>
+              <td class="num text-muted">${l.qty_carried}</td>
+              <td class="num font-bold" style="color:var(--accent-sale);">${l.qty_pending}</td>
+              <td><input type="number" step="0.001" min="0" max="${l.qty_pending}" value="${l.qty_pending}" data-idx="${l.index}" class="conv-qty" style="max-width:100px; text-align:right;"></td>
+            </tr>`).join('');
+        document.getElementById('convBody').innerHTML = rows;
+        document.getElementById('convModal').classList.remove('hidden');
+    } catch (e) { alert('Failed to load pending data: ' + e.message); }
+}
+
+function closeConvert() {
+    document.getElementById('convModal').classList.add('hidden');
+    convertState = null;
+}
+
+async function doConvert() {
+    if (!convertState) return;
+    const toType = document.getElementById('convTarget').value;
+    const r = await fetch(`/v2/doc/${encodeURIComponent(convertState.bill_no)}/prefill/${toType}`).then(r => r.json());
+    if (r.error) return alert(r.error);
+    const body = r.prefill;
+    const picked = Array.from(document.querySelectorAll('.conv-qty')).map(inp => ({
+        idx: parseInt(inp.dataset.idx, 10),
+        qty: parseFloat(inp.value) || 0,
+    })).filter(x => x.qty > 0);
+    if (!picked.length) return alert('Enter at least one qty to convert.');
+    const idxToPos = {};
+    body._parent_line_indexes.forEach((idx, i) => { idxToPos[idx] = i; });
+    const newParticulars = [], newQtys = [], newRates = [], newTax = [], newHsns = [], newAmts = [], newIdxs = [], newPq = [];
+    for (const p of picked) {
+        const pos = idxToPos[p.idx];
+        if (pos === undefined) continue;
+        newParticulars.push(body.particulars[pos]);
+        newQtys.push(p.qty);
+        newRates.push(body.rates[pos]);
+        newTax.push(body.taxrates[pos]);
+        newHsns.push(body.hsns[pos]);
+        const rate = parseFloat(body.rates[pos]) || 0;
+        const tr = parseFloat(body.taxrates[pos]) || 0;
+        newAmts.push(Math.round(rate * p.qty * (1 + tr / 100) * 100) / 100);
+        newIdxs.push(p.idx);
+        newPq.push(p.qty);
+    }
+    body.particulars = newParticulars; body.qtys = newQtys; body.rates = newRates;
+    body.taxrates = newTax; body.hsns = newHsns; body.amounts = newAmts;
+    body._parent_line_indexes = newIdxs; body._parent_line_qtys = newPq;
+    body.auto_generate = true;
+    const resp = await fetch('/generate-invoice', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+    if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ error: resp.statusText }));
+        return alert('Conversion failed: ' + (err.error || resp.statusText));
+    }
+    const parentBillNo = convertState.bill_no; // snapshot before closeConvert() nulls it
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url;
+    a.download = `${toType.toUpperCase()}_from_${parentBillNo.replace(/\//g, '_')}.pdf`;
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    closeConvert();
+    alert(`Created ${toType.toUpperCase()} from ${parentBillNo}. PDF downloaded.`);
+    await loadInvoices(); loadDashboardData();
+}
+
+async function loadOpenWorkflow() {
+    try {
+        const r = await fetch('/v2/workflow/open').then(r => r.json());
+        if (r.error) return;
+        const el = document.getElementById('wfBadge');
+        if (!el) return;
+        const total = (r.po.open + r.po.partial) + (r.grn.open + r.grn.partial);
+        if (total === 0) { el.classList.add('hidden'); return; }
+        el.classList.remove('hidden');
+        el.textContent = `${r.po.open + r.po.partial} PO · ${r.grn.open + r.grn.partial} GRN pending`;
+    } catch {}
+}
+
+document.addEventListener('DOMContentLoaded', () => setTimeout(loadOpenWorkflow, 500));
 </script>
+
+{% include "_shell_end.html" %}
 </body>
 </html>

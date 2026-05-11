@@ -1,0 +1,105 @@
+{# Variables expected: active_nav (str), page_title (str, optional), page_sub (str, optional) #}
+<div class="shell">
+
+  {# Mobile-only backdrop: tap to close the sidebar #}
+  <div id="sidebarBackdrop" class="sidebar-backdrop" onclick="document.getElementById('appSidebar').classList.remove('open'); this.classList.remove('open');"></div>
+
+  <aside class="sidebar" id="appSidebar">
+    <div class="sidebar-brand">
+      {% if profile.get('logo_base64') %}
+        <img src="data:image/png;base64,{{ profile.logo_base64 }}" alt="Logo">
+      {% endif %}
+      <div>
+        <div class="brand-text">
+          {% if profile.get('company_name') and profile.get('company_name') != 'Sahayak ERP' %}
+            {{ profile.get('company_name') }}
+          {% else %}
+            <span style="color:#f97316;">सहा</span>Yak ERP
+          {% endif %}
+        </div>
+        <div class="brand-sub">Billing &amp; Accounting</div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-group-label">Overview</div>
+      <a href="/dashboard" class="nav-item {% if active_nav == 'dashboard' %}active{% endif %}">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        <span>Dashboard</span>
+      </a>
+
+      {% if current_user.has_permission('sale') %}
+      <div class="nav-group-label">Sales</div>
+      <a href="/sales/new" class="nav-item {% if active_nav == 'sales' %}active{% endif %}">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        <span>New Sale</span>
+      </a>
+      {% endif %}
+
+      {% if current_user.has_permission('purchase') %}
+      <div class="nav-group-label">Purchase &amp; Inventory</div>
+      <a href="/purchase/new" class="nav-item {% if active_nav == 'purchase' %}active{% endif %}">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+        <span>New Purchase</span>
+      </a>
+      <a href="/inventory" class="nav-item {% if active_nav == 'inventory' %}active{% endif %}">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+        <span>Inventory</span>
+      </a>
+      {% endif %}
+
+      {% if profile.get('invoice_type', 'goods') == 'goods' %}
+      <a href="/products" class="nav-item {% if active_nav == 'products' %}active{% endif %}">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20.5 7.27l-8.5 4.92m0 0L3.5 7.27m8.5 4.92V21M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
+        <span>Products</span>
+      </a>
+      {% endif %}
+
+      <div class="nav-group-label">Accounting</div>
+      <a href="/accounts" class="nav-item {% if active_nav == 'accounts' %}active{% endif %}">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-6m3 6V7m3 10v-3m4 6H5a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v14a2 2 0 01-2 2z"/></svg>
+        <span>Accounts &amp; Reports</span>
+      </a>
+
+      <div class="nav-group-label">Admin</div>
+      <a href="/profile" class="nav-item {% if active_nav == 'settings' %}active{% endif %}">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        <span>Settings</span>
+      </a>
+      <a href="/logout" class="nav-item" style="color:var(--red-dark)">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+        <span>Logout</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="text-xs text-muted" style="padding: 6px 10px;">
+        {% if current_user.is_master %}<span class="pill pill-purple">Master</span>{% endif %}
+        <div style="margin-top:6px; font-weight:600; color:var(--ink-2);">{{ current_user.id if current_user else '' }}</div>
+      </div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="flex items-center gap-md">
+        <button class="sidebar-toggle" onclick="document.getElementById('appSidebar').classList.toggle('open'); document.getElementById('sidebarBackdrop').classList.toggle('open');" aria-label="Toggle menu">
+          <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+        <div>
+          <div class="topbar-title">{{ page_title or 'Sahayak ERP' }}</div>
+          {% if page_sub %}<div class="topbar-sub">{{ page_sub }}</div>{% endif %}
+        </div>
+      </div>
+      <div class="topbar-actions">
+        {% if current_user.is_master and all_users and all_users|length > 0 %}
+        <select id="view_as_select" class="input" style="min-width:160px; max-width:200px;">
+          {% for u in all_users %}
+            <option value="{{ u }}" {% if viewing_user == u %}selected{% endif %}>{{ u }}{% if u == current_user.id %} (Me){% endif %}</option>
+          {% endfor %}
+        </select>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="page">

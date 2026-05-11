@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>Products — Sahayak ERP</title>
+{% include "_shell_head.html" %}
+<style>
+  .prod-table { width: 100%; border-collapse: collapse; min-width: 760px; }
+  .prod-table th { text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--ink-3); padding: 10px 12px; background: var(--surface-2); border-bottom: 1px solid var(--border); white-space: nowrap; position: sticky; top: 0; z-index: 1; }
+  .prod-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--ink-2); }
+  .prod-table td.num { font-family: 'JetBrains Mono', monospace; text-align: right; }
+  .prod-table tr:hover td { background: var(--surface-2); }
+  .prod-table tr:last-child td { border-bottom: none; }
+  .pid-chip { display: inline-block; padding: 2px 8px; border-radius: 4px; background: var(--surface-3); color: var(--ink-2); font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.3px; }
+  .pid-chip.empty { background: transparent; color: var(--ink-3); font-style: italic; }
+  .log-row { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  .log-row:last-child { border-bottom: none; }
+  .log-field { display: inline-block; font-family: 'JetBrains Mono', monospace; background: var(--surface-3); padding: 1px 6px; border-radius: 3px; font-size: 11px; font-weight: 700; color: var(--ink-2); }
+  .log-arrow { color: var(--ink-3); margin: 0 6px; }
+  .log-old { text-decoration: line-through; color: var(--red); opacity: 0.8; }
+  .log-new { color: var(--green-dark); font-weight: 600; }
+  .log-meta { font-size: 11px; color: var(--ink-3); margin-top: 4px; }
+  .drawer-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; align-items: stretch; justify-content: flex-end; z-index: 999; }
+  .drawer-backdrop.open { display: flex; }
+  .drawer { background: var(--surface); width: min(540px, 100%); height: 100vh; overflow-y: auto; box-shadow: var(--shadow-lg); }
+  .drawer-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .drawer-body { padding: 16px 20px; }
+</style>
+</head>
+<body>
+{% set active_nav = 'products' %}
+{% set page_title = 'Products' %}
+{% set page_sub = 'Manage particulars · Product IDs · price/HSN/tax changelog' %}
+{% include "_shell_start.html" %}
+
+<div class="stat-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 18px;">
+  <div class="stat"><div class="stat-label">Total Products</div><div class="stat-value" id="statTotal">—</div></div>
+  <div class="stat success"><div class="stat-label">With Product ID</div><div class="stat-value" id="statWithPid">—</div></div>
+  <div class="stat warn"><div class="stat-label">Without Product ID</div><div class="stat-value" id="statNoPid">—</div></div>
+  <div class="stat info"><div class="stat-label">Recent Edits (7 days)</div><div class="stat-value" id="statRecent">—</div></div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-title"><span class="dot" style="background:#3b82f6;"></span> All Products / Particulars</div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <button class="btn btn-ghost btn-sm" onclick="openHistory(null)">
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        All Changes
+      </button>
+      <button class="btn btn-primary btn-sm" onclick="openEdit(null)">
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+        New Product
+      </button>
+    </div>
+  </div>
+
+  <div style="padding: 16px 20px;">
+    <div style="display:flex; gap: 10px; margin-bottom: 14px; flex-wrap:wrap;">
+      <input type="text" id="prodSearch" placeholder="Search name or Product ID..." oninput="renderProducts()" style="flex:1; min-width: 240px;">
+      <select id="prodFilter" data-no-enhance style="min-width: 180px;">
+        <option value="all">All</option>
+        <option value="with-pid">With Product ID</option>
+        <option value="no-pid">Without Product ID</option>
+      </select>
+    </div>
+    <div style="overflow-x:auto; max-height: 560px; border-radius: var(--radius-sm); border: 1px solid var(--border);">
+      <table class="prod-table">
+        <thead>
+          <tr>
+            <th>Product ID</th>
+            <th>Name</th>
+            <th>HSN</th>
+            <th style="text-align:right;">Rate</th>
+            <th style="text-align:right;">Tax %</th>
+            <th style="text-align:center;">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="prodBody">
+          <tr><td colspan="6" style="text-align:center; padding: 36px; color: var(--ink-3);">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div id="editModal" class="modal-backdrop" style="display:none;">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="card-title" id="editTitle">Edit Product</div>
+      <button class="modal-close" onclick="closeEdit()">×</button>
+    </div>
+    <div class="modal-body">
+      <form id="editForm" onsubmit="submitEdit(event)">
+        <input type="hidden" id="editOriginalName">
+        <div style="margin-bottom:12px;">
+          <label class="field-label">Product ID <span style="color: var(--ink-3); font-weight: 500;">(unique key, optional)</span></label>
+          <input type="text" id="editProductId" placeholder="e.g. SKU-001, ABC123" style="font-family:'JetBrains Mono',monospace; text-transform:uppercase;">
+        </div>
+        <div style="margin-bottom:12px;">
+          <label class="field-label">Name *</label>
+          <input type="text" id="editName" required placeholder="Item/service name">
+        </div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 12px;">
+          <div>
+            <label class="field-label">HSN/SAC</label>
+            <input type="text" id="editHsn" placeholder="8 digits">
+          </div>
+          <div>
+            <label class="field-label">Rate</label>
+            <input type="number" id="editRate" step="0.01" placeholder="0.00">
+          </div>
+          <div>
+            <label class="field-label">Tax %</label>
+            <input type="number" id="editTaxrate" step="0.01" placeholder="18">
+          </div>
+        </div>
+        <div style="display:flex; gap: 10px; margin-top: 18px;">
+          <button type="submit" class="btn btn-primary" style="flex:1;">Save</button>
+          <button type="button" class="btn btn-ghost" onclick="closeEdit()">Cancel</button>
+          <button type="button" class="btn btn-danger" id="deleteBtn" onclick="deleteProduct()" style="display:none;">Delete</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Changelog Drawer -->
+<div id="historyDrawer" class="drawer-backdrop" onclick="if(event.target===this) closeHistory()">
+  <div class="drawer">
+    <div class="drawer-header">
+      <div>
+        <div class="card-title" id="historyTitle">Change History</div>
+        <div class="text-xs text-muted" id="historySubtitle">All edits in chronological order.</div>
+      </div>
+      <button class="modal-close" onclick="closeHistory()">×</button>
+    </div>
+    <div class="drawer-body">
+      <div id="historyBody"><div style="text-align:center; color:var(--ink-3); padding:30px;">Loading…</div></div>
+    </div>
+  </div>
+</div>
+
+{% include "_shell_end.html" %}
+<script>
+let allProducts = [];
+
+function fmtDateTime(iso) {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  } catch { return iso; }
+}
+
+function renderProducts() {
+  const search = (document.getElementById('prodSearch').value || '').toLowerCase().trim();
+  const filter = document.getElementById('prodFilter').value;
+  const tbody = document.getElementById('prodBody');
+  let rows = allProducts;
+  if (search) {
+    rows = rows.filter(p =>
+      (p.name || '').toLowerCase().includes(search) ||
+      (p.product_id || '').toLowerCase().includes(search)
+    );
+  }
+  if (filter === 'with-pid') rows = rows.filter(p => p.product_id);
+  else if (filter === 'no-pid') rows = rows.filter(p => !p.product_id);
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 36px; color: var(--ink-3);">No products match.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(p => {
+    const nameEsc = (p.name || '').replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+    const pidCell = p.product_id
+      ? `<span class="pid-chip">${escapeHtml(p.product_id)}</span>`
+      : `<span class="pid-chip empty">—</span>`;
+    return `<tr>
+      <td>${pidCell}</td>
+      <td style="font-weight:600; color: var(--ink);">${escapeHtml(p.name || '—')}</td>
+      <td style="font-family:'JetBrains Mono',monospace; font-size:12px;">${escapeHtml(p.hsn || '—')}</td>
+      <td class="num">${p.rate !== '' && p.rate != null ? Number(p.rate).toFixed(2) : '—'}</td>
+      <td class="num">${p.taxrate !== '' && p.taxrate != null ? Number(p.taxrate) + '%' : '—'}</td>
+      <td style="text-align:center; white-space: nowrap;">
+        <button class="btn btn-ghost btn-sm" onclick="openEdit('${nameEsc}')" title="Edit">Edit</button>
+        <button class="btn btn-ghost btn-sm" onclick="openHistory('${nameEsc}')" title="View change history">History</button>
+        <button class="btn btn-ghost btn-sm" onclick="deleteRow('${nameEsc}')" title="Delete" style="color: var(--red);">Delete</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function updateStats(history) {
+  let total = allProducts.length, withPid = 0, noPid = 0;
+  allProducts.forEach(p => p.product_id ? withPid++ : noPid++);
+  document.getElementById('statTotal').textContent = total;
+  document.getElementById('statWithPid').textContent = withPid;
+  document.getElementById('statNoPid').textContent = noPid;
+  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const recent = (history || []).filter(h => h.changed_at && new Date(h.changed_at).getTime() > weekAgo).length;
+  document.getElementById('statRecent').textContent = recent;
+}
+
+async function loadProducts() {
+  try {
+    const [pRes, hRes] = await Promise.all([
+      fetch('/products/list').then(r => r.json()),
+      fetch('/products/history?limit=500').then(r => r.json()),
+    ]);
+    allProducts = Array.isArray(pRes) ? pRes : [];
+    renderProducts();
+    updateStats(Array.isArray(hRes) ? hRes : []);
+  } catch (e) {
+    document.getElementById('prodBody').innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--red);padding:30px;">Failed to load.</td></tr>';
+  }
+}
+
+function openEdit(name) {
+  const isNew = !name;
+  const p = isNew ? null : allProducts.find(x => x.name === name);
+  document.getElementById('editTitle').textContent = isNew ? 'New Product' : 'Edit Product';
+  document.getElementById('editOriginalName').value = isNew ? '' : (p ? p.name : '');
+  document.getElementById('editProductId').value = (p && p.product_id) || '';
+  document.getElementById('editName').value = (p && p.name) || '';
+  document.getElementById('editHsn').value = (p && p.hsn) || '';
+  document.getElementById('editRate').value = (p && p.rate != null && p.rate !== '') ? p.rate : '';
+  document.getElementById('editTaxrate').value = (p && p.taxrate != null && p.taxrate !== '') ? p.taxrate : '';
+  document.getElementById('deleteBtn').style.display = isNew ? 'none' : '';
+  document.getElementById('editModal').style.display = 'flex';
+}
+
+function closeEdit() {
+  document.getElementById('editModal').style.display = 'none';
+  document.getElementById('editForm').reset();
+}
+
+async function submitEdit(e) {
+  e.preventDefault();
+  const body = new URLSearchParams({
+    original_name: document.getElementById('editOriginalName').value,
+    name: document.getElementById('editName').value.trim(),
+    product_id: document.getElementById('editProductId').value.trim(),
+    hsn: document.getElementById('editHsn').value.trim(),
+    rate: document.getElementById('editRate').value,
+    taxrate: document.getElementById('editTaxrate').value,
+  });
+  try {
+    const res = await fetch('/products/update', { method: 'POST', body });
+    const j = await res.json();
+    if (!res.ok) { alert(j.error || 'Failed.'); return; }
+    closeEdit();
+    await loadProducts();
+  } catch { alert('Network error.'); }
+}
+
+async function deleteProduct() {
+  const name = document.getElementById('editOriginalName').value;
+  if (!name) return;
+  await doDelete(name, true);
+}
+
+// Direct delete from the row's Actions column (no modal needed).
+async function deleteRow(name) {
+  if (!name) return;
+  await doDelete(name, false);
+}
+
+async function doDelete(name, fromModal) {
+  if (!confirm(`Delete "${name}"? Changelog will be retained.`)) return;
+  try {
+    const res = await fetch('/products/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'name=' + encodeURIComponent(name),
+    });
+    const j = await res.json();
+    if (!res.ok) { alert(j.error || 'Failed.'); return; }
+    if (fromModal) closeEdit();
+    await loadProducts();
+  } catch { alert('Network error.'); }
+}
+
+async function openHistory(name) {
+  document.getElementById('historyDrawer').classList.add('open');
+  document.getElementById('historyTitle').textContent = name ? `History · ${name}` : 'All Changes (Tenant-wide)';
+  document.getElementById('historyBody').innerHTML = '<div style="text-align:center; color:var(--ink-3); padding:30px;">Loading…</div>';
+  try {
+    const url = name ? '/products/history?name=' + encodeURIComponent(name) : '/products/history?limit=200';
+    const rows = await fetch(url).then(r => r.json());
+    if (!rows.length) {
+      document.getElementById('historyBody').innerHTML = '<div style="text-align:center; color:var(--ink-3); padding:30px;">No changes recorded yet.</div>';
+      return;
+    }
+    document.getElementById('historyBody').innerHTML = rows.map(r => {
+      const oldV = (r.old_value || '').length > 80 ? r.old_value.slice(0, 80) + '…' : (r.old_value || '');
+      const newV = (r.new_value || '').length > 80 ? r.new_value.slice(0, 80) + '…' : (r.new_value || '');
+      return `<div class="log-row">
+        <div>
+          <span class="log-field">${escapeHtml(r.field)}</span>
+          ${r.particular_name ? `<span style="margin-left:8px; font-weight:600; color: var(--ink);">${escapeHtml(r.particular_name)}</span>` : ''}
+        </div>
+        <div style="margin-top:6px;">
+          ${oldV ? `<span class="log-old">${escapeHtml(oldV)}</span>` : '<em style="color:var(--ink-3);">(empty)</em>'}
+          <span class="log-arrow">→</span>
+          ${newV ? `<span class="log-new">${escapeHtml(newV)}</span>` : '<em style="color:var(--ink-3);">(empty)</em>'}
+        </div>
+        <div class="log-meta">
+          ${fmtDateTime(r.changed_at)}${r.actor ? ' · by ' + escapeHtml(r.actor) : ''}${r.product_id ? ' · PID ' + escapeHtml(r.product_id) : ''}
+        </div>
+      </div>`;
+    }).join('');
+  } catch {
+    document.getElementById('historyBody').innerHTML = '<div style="text-align:center; color:var(--red); padding:30px;">Failed to load.</div>';
+  }
+}
+
+function closeHistory() {
+  document.getElementById('historyDrawer').classList.remove('open');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('prodFilter').addEventListener('change', renderProducts);
+  loadProducts();
+});
+</script>
+</body>
+</html>

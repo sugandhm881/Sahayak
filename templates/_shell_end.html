@@ -1,0 +1,35 @@
+    </div>
+  </div>
+</div>
+
+<script>
+// View-as switcher (master only)
+document.addEventListener('DOMContentLoaded', () => {
+  const sel = document.getElementById('view_as_select');
+  if (sel) {
+    sel.addEventListener('change', () => {
+      const u = sel.value;
+      if (u) window.location.href = '/set-view-mode/' + encodeURIComponent(u);
+    });
+  }
+});
+
+// Auto-enhance any <select> with Tom Select for a consistent dropdown UI.
+// Pages that want to opt out a specific select can add `data-no-enhance` or class `no-enhance`.
+// Pages that initialise their own Tom Select on a select will skip auto-enhance (already wrapped).
+document.addEventListener('DOMContentLoaded', () => {
+  if (typeof TomSelect === 'undefined') return;
+  // Defer so page-specific init (which runs on DOMContentLoaded too) can claim its selects first.
+  setTimeout(() => {
+    document.querySelectorAll('select').forEach((s) => {
+      if (s.tomselect) return;
+      if (s.hasAttribute('data-no-enhance')) return;
+      if (s.classList.contains('no-enhance')) return;
+      if (s.multiple) return; // skip multi-selects (different UX)
+      try {
+        new TomSelect(s, { controlInput: s.dataset.search === 'true' ? undefined : null, create: false });
+      } catch (e) { /* already enhanced or unsupported */ }
+    });
+  }, 50);
+});
+</script>

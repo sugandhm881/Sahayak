@@ -1,87 +1,74 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Sahayak ERP</title>
-    <link rel="icon" href="/static/sayahak_logo_2.5.png" type="image/png">
-    <script src="https://cdn.tailwindcss.com"></script>
+  <title>Login — Sahayak ERP</title>
+  {% include "_shell_head.html" %}
 </head>
-<body class="bg-gray-100 flex items-center justify-center h-screen transition-colors duration-500" id="bodyBg">
+<body>
+  <div class="auth-wrap">
+    <div class="auth-card">
+      <div class="auth-accent"></div>
+      <div class="auth-body">
 
-    <div class="bg-white p-8 rounded-lg shadow-2xl w-full max-w-sm text-center transform transition-all duration-300" id="loginCard">
-        
-        <div class="h-32 flex items-center justify-center mb-4">
-            <img id="brandLogo" src="/static/Sahayak_logo.png" alt="Logo" class="max-h-full max-w-full object-contain transition-opacity duration-300">
+        <div class="auth-logo">
+          <img id="brandLogo" src="/static/Sahayak_logo.png" alt="Sahayak ERP">
         </div>
 
-        <h1 id="brandTitle" class="text-2xl font-bold mb-6 text-gray-800 transition-all duration-300">Login to Sahayak ERP</h1>
+        <h1 class="auth-title" id="brandTitle">Welcome Back</h1>
+        <p class="auth-sub">Sign in to your Sahayak ERP workspace</p>
 
         {% if error %}
-            <div class="bg-red-100 text-red-700 p-2 rounded mb-4 text-sm font-semibold border border-red-200">{{ error }}</div>
+          <div class="alert alert-error mb-md">{{ error }}</div>
         {% endif %}
 
-        <form method="POST" class="space-y-4">
-            <input type="text" id="usernameInput" name="username" placeholder="Enter Username" required
-                   onblur="fetchBranding()" 
-                   class="w-full p-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-400 transition">
-            
-            <input type="password" name="password" placeholder="Password" required
-                   class="w-full p-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-400 transition">
-            
-            <button type="submit"
-                    class="w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white py-3 rounded font-bold hover:from-orange-600 hover:to-orange-700 shadow-md transition transform hover:-translate-y-0.5">
-                Login
-            </button>
+        <form method="POST" class="auth-form">
+          <div>
+            <label class="field-label">Username</label>
+            <input type="text" id="usernameInput" name="username" placeholder="your-tenant-id" required
+                   autocomplete="username" onblur="fetchBranding()">
+          </div>
+          <div>
+            <label class="field-label">Password</label>
+            <input type="password" name="password" placeholder="••••••••" required autocomplete="current-password">
+          </div>
+          <button type="submit" class="btn btn-primary btn-lg" style="width:100%; margin-top:6px;">
+            Sign In
+          </button>
         </form>
+
+        <div class="auth-footer">
+          <span class="text-xs text-muted">Secure login &middot; Two-step verification enabled</span>
+        </div>
+      </div>
     </div>
+  </div>
 
 <script>
-    let timeout = null;
-    const defaultLogo = "/static/Sahayak_logo.png";
-    const defaultTitle = "Login to Sahayak ERP";
+  const defaultLogo = "/static/Sahayak_logo.png";
+  const defaultTitle = "Welcome Back";
 
-    function fetchBranding() {
-        const username = document.getElementById('usernameInput').value.trim();
-        const logoImg = document.getElementById('brandLogo');
-        const titleText = document.getElementById('brandTitle');
-
-        if (!username) {
-            resetBranding();
-            return;
-        }
-
-        fetch(`/api/get-branding/${username}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.found) {
-                    titleText.innerText = data.company_name || defaultTitle;
-                    if (data.logo_base64) {
-                        logoImg.src = "data:image/png;base64," + data.logo_base64;
-                    } else {
-                        logoImg.src = defaultLogo;
-                    }
-                } else {
-                    resetBranding();
-                }
-            })
-            .catch(err => {
-                console.error("Error fetching branding:", err);
-                resetBranding();
-            });
-    }
-
-    function resetBranding() {
-        document.getElementById('brandLogo').src = defaultLogo;
-        document.getElementById('brandTitle').innerText = defaultTitle;
-    }
-    
-    document.addEventListener("DOMContentLoaded", () => {
-        if(document.getElementById('usernameInput').value) {
-            fetchBranding();
-        }
-    });
+  function fetchBranding() {
+    const username = document.getElementById('usernameInput').value.trim();
+    const logoImg = document.getElementById('brandLogo');
+    const titleText = document.getElementById('brandTitle');
+    if (!username) { resetBranding(); return; }
+    fetch(`/api/get-branding/${encodeURIComponent(username)}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.found) {
+          titleText.innerText = data.company_name || defaultTitle;
+          logoImg.src = data.logo_base64 ? ("data:image/png;base64," + data.logo_base64) : defaultLogo;
+        } else { resetBranding(); }
+      })
+      .catch(() => resetBranding());
+  }
+  function resetBranding() {
+    document.getElementById('brandLogo').src = defaultLogo;
+    document.getElementById('brandTitle').innerText = defaultTitle;
+  }
+  document.addEventListener("DOMContentLoaded", () => {
+    if (document.getElementById('usernameInput').value) fetchBranding();
+  });
 </script>
-
 </body>
 </html>

@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>Inventory — Sahayak ERP</title>
+{% include "_shell_head.html" %}
+<style>
+  .inv-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 18px; }
+  .inv-table { width: 100%; border-collapse: collapse; min-width: 640px; }
+  .inv-table th { text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--ink-3); padding: 10px 12px; background: var(--surface-2); border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .inv-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--ink-2); }
+  .inv-table td.num { font-family: 'JetBrains Mono', monospace; text-align: right; font-weight: 600; }
+  .inv-table tr:hover td { background: var(--surface-2); }
+  .inv-table tr:last-child td { border-bottom: none; }
+  .stock-pill { display: inline-block; padding: 2px 10px; border-radius: 99px; font-size: 11px; font-weight: 700; letter-spacing: 0.3px; font-family: 'JetBrains Mono', monospace; }
+  .stock-pill.ok   { background: var(--green-light); color: #065f46; }
+  .stock-pill.low  { background: #fff7ed; color: #9a3412; }
+  .stock-pill.out  { background: var(--red-light); color: #991b1b; }
+  .tab-bar { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 18px; overflow-x: auto; }
+  .tab { padding: 10px 18px; border: none; background: transparent; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--ink-3); border-bottom: 2px solid transparent; transition: var(--transition); font-family: inherit; white-space: nowrap; }
+  .tab:hover { color: var(--ink); }
+  .tab.active { color: #2563eb; border-bottom-color: #2563eb; }
+</style>
+</head>
+<body>
+{% set active_nav = 'inventory' %}
+{% set page_title = 'Inventory' %}
+{% set page_sub = 'Stock levels, movement ledger and adjustments' %}
+{% include "_shell_start.html" %}
+
+<div class="inv-stat-grid">
+  <div class="stat"><div class="stat-label">Total Items</div><div class="stat-value" id="statTotal">—</div></div>
+  <div class="stat success"><div class="stat-label">In Stock</div><div class="stat-value" id="statInStock">—</div></div>
+  <div class="stat warn"><div class="stat-label">Low Stock (≤ 5)</div><div class="stat-value" id="statLow">—</div></div>
+  <div class="stat danger"><div class="stat-label">Out of Stock</div><div class="stat-value" id="statOut">—</div></div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-title"><span class="dot" style="background:#3b82f6;"></span> Inventory</div>
+    <button class="btn btn-primary btn-sm" onclick="openAdjustModal()">
+      <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+      Manual Adjustment
+    </button>
+  </div>
+
+  <div style="padding: 16px 20px;">
+    <div class="tab-bar">
+      <button class="tab active" data-panel="stockPanel" onclick="switchInvTab(this)">Stock Levels</button>
+      <button class="tab" data-panel="ledgerPanel" onclick="switchInvTab(this)">Movement Ledger</button>
+    </div>
+
+    <div id="stockPanel">
+      <div style="display:flex; gap: 10px; margin-bottom: 12px; flex-wrap:wrap;">
+        <input type="text" id="stockSearch" placeholder="Search item..." oninput="renderStock()" style="flex:1; min-width: 220px;">
+        <select id="stockFilter" style="min-width: 180px;">
+          <option value="all">All items</option>
+          <option value="in">In stock</option>
+          <option value="low">Low stock (≤ 5)</option>
+          <option value="out">Out of stock</option>
+        </select>
+      </div>
+      <div style="overflow-x:auto; max-height: 540px; border-radius: var(--radius-sm); border: 1px solid var(--border);">
+        <table class="inv-table">
+          <thead>
+            <tr>
+              <th>Item Name</th>
+              <th style="text-align:right;">Current Stock</th>
+              <th style="text-align:center;">Status</th>
+              <th>Last Updated</th>
+              <th style="text-align:center;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="stockBody">
+            <tr><td colspan="5" style="text-align:center; padding: 36px; color: var(--ink-3);">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="ledgerPanel" style="display:none;">
+      <div style="display:flex; gap: 10px; margin-bottom: 12px; flex-wrap:wrap;">
+        <select id="ledgerItemFilter" style="min-width: 240px;">
+          <option value="">All items</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="loadLedger()">Refresh</button>
+      </div>
+      <div style="overflow-x:auto; max-height: 540px; border-radius: var(--radius-sm); border: 1px solid var(--border);">
+        <table class="inv-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Ref Doc</th>
+              <th>Type</th>
+              <th>Item</th>
+              <th style="text-align:right;">Qty Change</th>
+              <th style="text-align:right;">Running Balance</th>
+            </tr>
+          </thead>
+          <tbody id="ledgerBody">
+            <tr><td colspan="6" style="text-align:center; padding: 36px; color: var(--ink-3);">Select an item or load all…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="adjustModal" class="modal-backdrop" style="display:none;">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="card-title"><span class="dot" style="background:#f59e0b;"></span> Manual Stock Adjustment</div>
+      <button class="modal-close" onclick="closeAdjustModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <form id="adjustForm" onsubmit="submitAdjust(event)">
+        <div style="margin-bottom: 14px;">
+          <label class="field-label">Item Name</label>
+          <select id="adjustItem" required></select>
+        </div>
+        <div style="margin-bottom: 14px;">
+          <label class="field-label">Quantity Change (use + to add, - to remove)</label>
+          <input type="number" id="adjustQty" step="0.001" placeholder="e.g. 10 or -5" required>
+        </div>
+        <div style="margin-bottom: 14px;">
+          <label class="field-label">Reason</label>
+          <input type="text" id="adjustReason" placeholder="e.g. Physical count correction, damage, opening stock">
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%;">Save Adjustment</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% include "_shell_end.html" %}
+<script>
+let allStock = [];
+let allLedger = [];
+let tsStockFilter, tsLedgerItem, tsAdjustItem;
+
+function switchInvTab(el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  const panel = el.dataset.panel;
+  document.getElementById('stockPanel').style.display = panel === 'stockPanel' ? '' : 'none';
+  document.getElementById('ledgerPanel').style.display = panel === 'ledgerPanel' ? '' : 'none';
+  if (panel === 'ledgerPanel' && allLedger.length === 0) loadLedger();
+}
+
+function stockStatus(qty) {
+  const q = parseFloat(qty || 0);
+  if (q <= 0) return 'out';
+  if (q <= 5) return 'low';
+  return 'ok';
+}
+
+function renderStock() {
+  const search = (document.getElementById('stockSearch').value || '').toLowerCase();
+  const filter = tsStockFilter ? tsStockFilter.getValue() : 'all';
+  const tbody = document.getElementById('stockBody');
+  let filtered = allStock.filter(i => (i.item_name || '').toLowerCase().includes(search));
+  if (filter !== 'all') filtered = filtered.filter(i => stockStatus(i.current_stock) === filter);
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 36px; color: var(--ink-3);">No items.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = filtered.map(i => {
+    const q = parseFloat(i.current_stock || 0);
+    const status = stockStatus(q);
+    const label = status === 'out' ? 'Out' : (status === 'low' ? 'Low' : 'OK');
+    const dateStr = i.last_updated ? String(i.last_updated).slice(0, 10) : '—';
+    const nameEsc = String(i.item_name || '').replace(/"/g, '&quot;');
+    return `<tr>
+      <td style="font-weight:600; color: var(--ink);">${i.item_name || '—'}</td>
+      <td class="num">${q.toFixed(3)}</td>
+      <td style="text-align:center;"><span class="stock-pill ${status}">${label}</span></td>
+      <td style="color: var(--ink-3); font-size: 12px;">${dateStr}</td>
+      <td style="text-align:center;">
+        <button class="btn btn-ghost btn-sm" onclick="prefillAdjust('${nameEsc}')">Adjust</button>
+        <button class="btn btn-ghost btn-sm" onclick="viewItemLedger('${nameEsc}')">Ledger</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function updateStockStats() {
+  let total = allStock.length, inStock = 0, low = 0, out = 0;
+  allStock.forEach(i => {
+    const s = stockStatus(i.current_stock);
+    if (s === 'out') out++;
+    else if (s === 'low') { low++; inStock++; }
+    else inStock++;
+  });
+  document.getElementById('statTotal').textContent = total;
+  document.getElementById('statInStock').textContent = inStock;
+  document.getElementById('statLow').textContent = low;
+  document.getElementById('statOut').textContent = out;
+}
+
+async function loadStock() {
+  try {
+    const res = await fetch('/inventory/list');
+    allStock = await res.json();
+    allStock.sort((a, b) => String(a.item_name || '').localeCompare(String(b.item_name || '')));
+    updateStockStats();
+    renderStock();
+    // populate item dropdowns
+    const opts = [{value:'', text:'All items'}, ...allStock.map(i => ({value: i.item_name, text: i.item_name}))];
+    if (tsLedgerItem) { tsLedgerItem.clearOptions(); opts.forEach(o => tsLedgerItem.addOption(o)); tsLedgerItem.refreshOptions(false); }
+    if (tsAdjustItem) { tsAdjustItem.clearOptions(); allStock.forEach(i => tsAdjustItem.addOption({value: i.item_name, text: i.item_name})); tsAdjustItem.refreshOptions(false); }
+  } catch (e) {
+    document.getElementById('stockBody').innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--red);padding:30px;">Failed to load inventory.</td></tr>';
+  }
+}
+
+async function loadLedger() {
+  const item = tsLedgerItem ? tsLedgerItem.getValue() : '';
+  const q = item ? ('?item=' + encodeURIComponent(item)) : '';
+  try {
+    const res = await fetch('/inventory/ledger' + q);
+    allLedger = await res.json();
+    const tbody = document.getElementById('ledgerBody');
+    if (!allLedger.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 36px; color: var(--ink-3);">No movement yet.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = allLedger.map(r => {
+      const qtyChange = parseFloat(r.qty_change || 0);
+      const sign = qtyChange > 0 ? '+' : '';
+      const color = qtyChange > 0 ? '#059669' : (qtyChange < 0 ? '#dc2626' : 'var(--ink-3)');
+      return `<tr>
+        <td style="font-size:12px; color: var(--ink-3);">${r.date || '—'}</td>
+        <td style="font-family:'JetBrains Mono',monospace; font-size:12px;">${r.ref_doc_no || '—'}</td>
+        <td>${(r.doc_type || '').replace('_', ' ')}</td>
+        <td style="font-weight:600; color: var(--ink);">${r.item_name || '—'}</td>
+        <td class="num" style="color:${color};">${sign}${qtyChange.toFixed(3)}</td>
+        <td class="num">${parseFloat(r.running_balance || 0).toFixed(3)}</td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    document.getElementById('ledgerBody').innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--red);padding:30px;">Failed to load ledger.</td></tr>';
+  }
+}
+
+function viewItemLedger(name) {
+  document.querySelector('[data-panel="ledgerPanel"]').click();
+  if (tsLedgerItem) tsLedgerItem.setValue(name);
+}
+
+function openAdjustModal() { document.getElementById('adjustModal').style.display = 'flex'; }
+function closeAdjustModal() {
+  document.getElementById('adjustModal').style.display = 'none';
+  document.getElementById('adjustForm').reset();
+  if (tsAdjustItem) tsAdjustItem.clear();
+}
+function prefillAdjust(name) {
+  openAdjustModal();
+  if (tsAdjustItem) tsAdjustItem.setValue(name);
+  document.getElementById('adjustQty').focus();
+}
+
+async function submitAdjust(e) {
+  e.preventDefault();
+  const item = tsAdjustItem ? tsAdjustItem.getValue() : '';
+  const qty = document.getElementById('adjustQty').value;
+  const reason = document.getElementById('adjustReason').value;
+  if (!item) { alert('Pick an item.'); return; }
+  try {
+    const res = await fetch('/inventory/adjust', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ item_name: item, qty_change: qty, reason }),
+    });
+    const j = await res.json();
+    if (!res.ok) { alert(j.error || 'Failed.'); return; }
+    closeAdjustModal();
+    await loadStock();
+    if (tsLedgerItem && tsLedgerItem.getValue() === item) loadLedger();
+  } catch (e) { alert('Network error.'); }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  tsStockFilter = new TomSelect('#stockFilter', { controlInput: null, onChange: renderStock });
+  tsLedgerItem = new TomSelect('#ledgerItemFilter', { controlInput: null, onChange: loadLedger, maxOptions: 500 });
+  tsAdjustItem = new TomSelect('#adjustItem', { create: true, persist: false, maxOptions: 500 });
+  await loadStock();
+});
+</script>
+</body>
+</html>

@@ -1,63 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sahayak — ERP</title>
-<link rel="icon" href="/static/sayahak_logo_2.5.png" type="image/png">
-<script src="https://cdn.tailwindcss.com"></script>
-<link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.default.min.css" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-
+<title>New Document — {{ profile.get('company_name', 'Sahayak ERP') }}</title>
+{% include "_shell_head.html" %}
 <style>
-  :root {
-    --ink: #0f1117; --ink-2: #3d4050; --ink-3: #7a7d91;
-    --surface: #ffffff; --surface-2: #f7f8fb; --surface-3: #eef0f6;
-    --border: #e2e5ef; --border-2: #cdd1e0;
-    --accent-sale: #f97316; --accent-sale-light: #fff7ed;
-    --accent-purchase: #3b82f6; --accent-purchase-light: #eff6ff;
-    --green: #10b981; --green-light: #ecfdf5;
-    --red: #ef4444; --red-light: #fef2f2;
-    --purple: #8b5cf6;
-    --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
-    --shadow: 0 4px 16px rgba(0,0,0,0.07), 0 2px 6px rgba(0,0,0,0.04);
-    --shadow-lg: 0 12px 40px rgba(0,0,0,0.10), 0 4px 12px rgba(0,0,0,0.06);
-    --radius: 12px; --radius-sm: 8px; --radius-lg: 16px;
-    --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-  * { box-sizing: border-box; }
-  body { font-family: 'Plus Jakarta Sans', sans-serif; background: #f0f2f8; color: var(--ink); min-height: 100vh; font-size: 14px; line-height: 1.5; }
-  ::-webkit-scrollbar { width: 5px; height: 5px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 99px; }
-
-  .app-shell { max-width: 1280px; margin: 0 auto; padding: 20px 16px 60px; }
-
-  .topbar { background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow); padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; gap: 12px; border: 1px solid var(--border); }
-  .topbar-brand { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
-  .topbar-logo { height: 40px; object-fit: contain; }
-  .topbar-title { font-size: 17px; font-weight: 800; color: var(--ink); letter-spacing: -0.3px; }
-  .topbar-subtitle { font-size: 10px; font-weight: 600; color: var(--ink-3); letter-spacing: 1.5px; text-transform: uppercase; }
-  .topbar-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-
-  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 14px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 600; cursor: pointer; transition: var(--transition); border: none; outline: none; white-space: nowrap; text-decoration: none; font-family: inherit; }
-  .btn svg { width: 15px; height: 15px; }
-  .btn-ghost { background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--border); }
-  .btn-ghost:hover { background: var(--surface-3); border-color: var(--border-2); }
-  .btn-danger { background: var(--red-light); color: var(--red); border: 1px solid #fca5a5; }
-  .btn-danger:hover { background: #fee2e2; }
-
-  .dropdown { position: relative; }
-  .dropdown-menu { position: absolute; right: 0; top: calc(100% + 6px); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-lg); min-width: 190px; z-index: 100; display: none; overflow: hidden; }
-  .dropdown:hover .dropdown-menu { display: block; }
-  .dropdown-menu a { display: flex; align-items: center; gap: 8px; padding: 10px 14px; font-size: 13px; color: var(--ink-2); text-decoration: none; transition: var(--transition); }
-  .dropdown-menu a:hover { background: var(--surface-2); color: var(--ink); }
-  .dropdown-menu a + a { border-top: 1px solid var(--border); }
-
-  .card { background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow-sm); }
-  .card-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
-  .card-title { font-size: 13px; font-weight: 700; color: var(--ink); display: flex; align-items: center; gap: 8px; }
+  /* Page-specific component overlays on top of app.css design system */
   .card-title .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 
   .mode-pill-group { display: flex; gap: 5px; background: var(--surface-2); padding: 4px; border-radius: 10px; border: 1px solid var(--border); }
@@ -222,65 +169,39 @@
 </head>
 
 <body>
-<div class="app-shell">
+{% set _module = module or 'all' %}
+{% if _module == 'sale' %}
+  {% set active_nav = 'sales' %}
+  {% set page_title = 'New Sale Document' %}
+  {% set page_sub = 'Create a Tax Invoice or Credit Note' %}
+{% elif _module == 'purchase' %}
+  {% set active_nav = 'purchase' %}
+  {% set page_title = 'New Purchase Document' %}
+  {% set page_sub = 'Create a Purchase Order, GRN, Bill or Debit Note' %}
+{% else %}
+  {% set active_nav = 'new_doc' %}
+  {% set page_title = 'New Document' %}
+  {% set page_sub = 'Create invoices, purchase orders, GRNs, bills and notes' %}
+{% endif %}
+{% include "_shell_start.html" %}
 
-<div class="topbar">
-  <div class="topbar-brand">
-    {% if profile.get('logo_base64') %}
-      <img src="data:image/png;base64,{{ profile.logo_base64 }}" alt="Logo" class="topbar-logo">
-    {% endif %}
-    <div>
-      <div class="topbar-title">
-        {% if profile.get('company_name') and profile.get('company_name') != 'Sahayak ERP' %}
-          {{ profile.get('company_name') }}
-        {% else %}
-          <span style="color:#f97316; font-size:115%;">सहा</span>Yak <span style="color:var(--ink-3); font-weight:600; font-size:14px; margin-left:2px;">ERP</span>
-        {% endif %}
-      </div>
-      <div class="topbar-subtitle">ERP &amp; Billing System</div>
-    </div>
-  </div>
-
-  <div class="topbar-actions">
-    {% if current_user.is_master %}
-    <div style="display:flex;align-items:center;gap:8px;margin-right:10px;flex: 1 1 100%; justify-content: center; margin-bottom: 8px;">
-      <span style="font-size:10px;font-weight:800;color:var(--ink-3);letter-spacing:0.5px; white-space: nowrap;">VIEW AS</span>
-      <select id="view_as_select" style="min-width: 180px; width:100%;">
-        {% for u in all_users %}
-          <option value="{{ u }}" {% if viewing_user == u %}selected{% endif %}>{{ u }}{% if u == current_user.id %} (Me){% endif %}</option>
-        {% endfor %}
-      </select>
-    </div>
-    {% endif %}
-
-    <a href="/dashboard" class="btn btn-ghost">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-      Dashboard
-    </a>
-    <a href="/profile" class="btn btn-ghost">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-      Settings
-    </a>
-    <div class="dropdown">
-      <button class="btn btn-ghost">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-        Reports ▾
-      </button>
-      <div class="dropdown-menu">
-        <a href="/download-report"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>Standard Excel</a>
-        <a href="/download-gstr1" style="color:#059669;font-weight:700;"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>GSTR-1 Export</a>
-      </div>
-    </div>
-    <a href="{{ url_for('logout') }}" class="btn btn-danger">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
-      Logout
-    </a>
-  </div>
+{% if _module == 'all' %}
+<div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:14px; flex-wrap:wrap;">
+  <a href="/download-report" class="btn btn-ghost btn-sm">
+    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+    Standard Excel
+  </a>
+  <a href="/download-gstr1" class="btn btn-ghost btn-sm" style="color:#059669; font-weight:700;">
+    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+    GSTR-1 Export
+  </a>
 </div>
+{% endif %}
 
 <div class="card">
 
   <div class="control-bar">
+    {% if _module == 'all' %}
     <div class="ctrl-group">
       <span class="ctrl-label">Mode</span>
       <div class="mode-pill-group">
@@ -298,6 +219,9 @@
         {% endif %}
       </div>
     </div>
+    {% else %}
+    <input type="radio" name="appMode" value="{{ _module }}" checked style="display:none;">
+    {% endif %}
 
     <div class="ctrl-group hidden md:block">
       <span class="ctrl-label" style="visibility:hidden;">Tax</span> 
@@ -465,7 +389,7 @@
   <div class="card-header">
     <div class="card-title">
       <span class="dot" style="background:#8b5cf6;"></span>
-      Recent Documents
+      {% if _module == 'sale' %}Recent Sales{% elif _module == 'purchase' %}Recent Purchases{% else %}Recent Documents{% endif %}
       <span id="historyCount" style="font-size:11px;font-weight:600;color:var(--ink-3);margin-left:6px;"></span>
     </div>
     <div style="display:flex;gap:8px; flex-wrap: wrap;">
@@ -517,10 +441,13 @@
   </div>
 </div>
 
-</div><script>
+{% include "_shell_end.html" %}
+<script>
 const INVOICE_TYPE = "{{ profile.get('invoice_type', 'goods') }}";
 const IS_SERVICE = (INVOICE_TYPE === 'service');
 const SELLER_STATE = "{{ profile.get('state', 'delhi') | lower }}";
+const LOCKED_MODULE = "{{ _module }}"; // 'sale', 'purchase', or 'all'
+const IS_LOCKED = (LOCKED_MODULE === 'sale' || LOCKED_MODULE === 'purchase');
 const INDIAN_STATES = [
   "Andhra Pradesh","Arunachal Pradesh","Assam","Bihar","Chhattisgarh","Goa","Gujarat",
   "Haryana","Himachal Pradesh","Jharkhand","Karnataka","Kerala","Madhya Pradesh","Maharashtra",
@@ -544,7 +471,7 @@ let particularsData = {};
 let invoiceListCache = [];
 let allClientsData = {};   
 let isEditMode = false;
-let currentMode = 'sale';
+let currentMode = IS_LOCKED ? LOCKED_MODULE : 'sale';
 
 let tsViewAs, tsDocType, tsGenType, tsClientState, tsShipState, tsHistMode, clientTomSelect;
 
@@ -624,13 +551,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupEmailAutocomplete(document.getElementById('client_email'));
   setupEmailAutocomplete(document.getElementById('shipto_email'));
 
-  if (document.getElementById('view_as_select')) {
-      tsViewAs = new TomSelect("#view_as_select", {
-          create: false,
-          controlInput: null,
-          onChange: function(val) { if(val) window.location.href='/set-view-mode/'+val; }
-      });
-  }
+  // The shell renders a plain <select id="view_as_select">; shell JS already
+  // handles navigation on change. Do not wrap it with TomSelect (double-binding
+  // causes redirect loops).
 
   tsGenType = new TomSelect("#generation_type", {
       controlInput: null,
@@ -655,7 +578,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   populateStates();
   document.getElementsByName('appMode').forEach(r => { if(r.checked) currentMode = r.value; });
   handleModeChange();
-  
+
+  if (IS_LOCKED && tsHistMode) {
+    tsHistMode.setValue(LOCKED_MODULE);
+    // lock the filter too — user is in a module-specific view
+    const histFilterEl = document.getElementById('histModeFilter');
+    if (histFilterEl) histFilterEl.closest('.history-filter-row').querySelector('.ts-wrapper').style.display = 'none';
+  }
+
   await loadClients();
   await loadParticulars();
   loadOldInvoices();
@@ -1055,6 +985,31 @@ async function handleParticularInput(val, row) {
   if(!val) return;
   const isNonGST = document.getElementById('is_non_gst').checked;
   let fd = particularsData[isNonGST ? val+'_NONGST' : val] || (isNonGST ? particularsData[val] : null);
+
+  // Product ID resolution: if the typed value isn't a known particular but matches
+  // a Product ID, swap it for the underlying particular name and recurse. The
+  // Product ID itself never appears anywhere on the invoice — it's only a lookup key.
+  if (!fd) {
+    try {
+      const r = await fetch('/products/lookup/' + encodeURIComponent(val));
+      if (r.ok) {
+        const product = await r.json();
+        if (product && product.name && product.name !== val) {
+          const sel = row.querySelector('.particulars-select');
+          if (sel && sel.tomselect) {
+            // Make sure the resolved name is an option and select it; this re-triggers onChange.
+            if (!sel.tomselect.options[product.name]) {
+              sel.tomselect.addOption({ value: product.name, text: product.name });
+            }
+            // Remove the raw product-id option so it doesn't linger in the dropdown.
+            try { sel.tomselect.removeOption(val); } catch {}
+            sel.tomselect.setValue(product.name);
+            return; // onChange will re-fire handleParticularInput with the real name
+          }
+        }
+      }
+    } catch { /* offline / network — silently fall through */ }
+  }
   if(fd) {
     if(IS_SERVICE) {
         const subSel = row.querySelector('.sub-particular');
@@ -1154,16 +1109,27 @@ function addRow() {
 
   new TomSelect(row.querySelector('.particulars-select'), {
     options: Object.keys(particularsData).map(k => {
-      return { value: k, text: k };
+      const pd = particularsData[k] || {};
+      return { value: k, text: k, product_id: pd.product_id || '' };
     }),
     create: true,
+    // Match user-typed input against BOTH the particular name and its Product ID,
+    // so typing "SKU-001" finds the corresponding product while typing.
+    searchField: ['text', 'product_id'],
     sortField: {field:"text", direction:"asc"},
     dropdownParent: 'body',
     render: {
       option: function(data, escape) {
-        return `<div style="padding:8px 12px;font-size:13px;">${escape(data.text)}</div>`;
+        // Show the Product ID as a small monospace chip on the right so the user
+        // can see/recognise it in the dropdown. It never appears in the selected
+        // item (see `item` render below), so the invoice itself stays clean.
+        const pidBadge = data.product_id
+          ? `<span style="margin-left:8px; padding:1px 6px; border-radius:3px; background:#eef2ff; color:#3730a3; font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:700; letter-spacing:0.3px;">${escape(data.product_id)}</span>`
+          : '';
+        return `<div style="padding:8px 12px;font-size:13px; display:flex; align-items:center; justify-content:space-between;"><span>${escape(data.text)}</span>${pidBadge}</div>`;
       },
       item: function(data, escape) {
+        // Selected item shows ONLY the name — Product ID never shows on the invoice.
         return `<div>${escape(data.text)}</div>`;
       }
     },
