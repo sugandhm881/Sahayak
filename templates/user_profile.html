@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+{% macro eye_btn() %}<button type="button" class="reveal-btn" onclick="toggleReveal(this)" title="Show"><svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg></button>{% endmacro %}
+<head>
+  <title>Settings — Sahayak ERP</title>
+  {% include "_shell_head.html" %}
+  <style>
+    .secret-wrap { position: relative; }
+    .secret-wrap input { padding-right: 38px !important; }
+    .reveal-btn {
+      position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; cursor: pointer; padding: 4px 5px;
+      color: var(--ink-3); line-height: 1; border-radius: 4px;
+    }
+    .reveal-btn:hover { color: var(--ink); background: var(--surface-2); }
+    .perm-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 9px 12px; border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm); cursor: pointer;
+      transition: border-color .15s, background .15s;
+    }
+    .perm-row:hover { border-color: var(--accent); background: var(--surface-2); }
+    .perm-row.perm-on { border-color: #16a34a; background: #f0fdf4; }
+    .perm-row input[type=checkbox] { width: 16px; height: 16px; flex-shrink: 0; accent-color: #16a34a; }
+    .perm-label { font-size: 13px; font-weight: 600; color: var(--ink); }
+    .perm-sub   { font-size: 11px; color: var(--ink-muted); margin-top: 1px; }
+  </style>
+</head>
+<body>
+{% set active_nav = 'settings' %}
+{% set page_title = 'Settings' if current_user.is_master else 'My Profile' %}
+{% set page_sub = 'Manage account details, users, and system configuration' %}
+{% include "_shell_start.html" %}
+
+{% set messages = get_flashed_messages({'with_categories': true}) %}
+{% if messages %}
+  {% for pair in messages %}
+    {% set category = pair[0] %}
+    {% set message = pair[1] %}
+    <div class="alert {% if category == 'error' %}alert-error{% else %}alert-success{% endif %} mb-md">{{ message }}</div>
+  {% endfor %}
+{% endif %}
+
+{% if current_user.is_master %}
+
+<div class="card mb-md">
+  <div class="card-header">
+    <div class="card-title">
+      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+      </svg>
+      Payment &amp; Activation Requests
+    </div>
+  </div>
+  <div class="table-wrap" style="border:none; border-radius:0;">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>User ID</th>
+          <th class="num">Amount</th>
+          <th>UTR / Ref</th>
+          <th style="text-align:center;">Status</th>
+          <th style="text-align:center;">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if pending_requests %}
+          {% for req in pending_requests %}
+          <tr>
+            <td class="text-muted">{{ req.date_display }}</td>
+            <td class="font-bold">{{ req.user_id }}</td>
+            <td class="num font-bold" style="color:var(--green-dark);">₹{{ req.amount }}</td>
+            <td class="text-xs text-muted" style="font-family:'JetBrains Mono',monospace;">{{ req.utr }}</td>
+            <td style="text-align:center;">
+              {% if req.status == 'Approved' %}
+                <span class="pill pill-green">Approved</span>
+              {% else %}
+                <span class="pill pill-amber">Pending</span>
+              {% endif %}
+            </td>
+            <td style="text-align:center;">
+              {% if req.status == 'Pending' %}
+                <form method="POST" style="display:inline;">
+                  <input type="hidden" name="verify_request" value="true">
+                  <input type="hidden" name="user_to_activate" value="{{ req.user_id }}">
+                  <input type="hidden" name="request_id" value="{{ req.user_id }}_{{ req.utr }}">
+                  <button type="submit" class="btn btn-success btn-sm">Verify</button>
+                </form>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="6" class="empty" style="padding:30px 20px;">No recent payment requests.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card mb-md">
+  <div class="card-header">
+    <div class="card-title">
+      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
+      </svg>
+      Create New User
+    </div>
+  </div>
+  <div class="card-body">
+    <form method="POST" style="display:flex; flex-direction:column; gap:14px;">
+      <div style="display:grid; grid-template-columns:1fr 1fr auto; gap:12px; align-items:end;">
+        <div>
+          <label class="field-label">Username</label>
+          <input type="text" name="new_username" placeholder="e.g. user_delhi" required>
+        </div>
+        <div>
+          <label class="field-label">Password</label>
+          <input type="text" name="new_password" placeholder="Secret Password" required>
+        </div>
+        <button type="submit" class="btn btn-secondary">+ Create User</button>
+      </div>
+      <div class="flex items-center gap-lg" style="flex-wrap:wrap;">
+        <span class="text-sm font-bold">Initial Permissions:</span>
+        <label class="flex items-center gap-sm" style="font-size:13px; font-weight:600; cursor:pointer;">
+          <input type="checkbox" name="new_perm_sale" value="true" checked style="width:16px; height:16px;"> Sale Access
+        </label>
+        <label class="flex items-center gap-sm" style="font-size:13px; font-weight:600; cursor:pointer;">
+          <input type="checkbox" name="new_perm_purchase" value="true" checked style="width:16px; height:16px;"> Purchase Access
+        </label>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card mb-md">
+  <div class="card-header">
+    <div class="card-title">Manage Existing User</div>
+  </div>
+  <div class="card-body" style="max-width:420px;">
+    <label class="field-label">Select User</label>
+    <select id="manageUserSelect" data-no-enhance>
+      {%- for u in all_users -%}
+        <option value="{{ u }}"{% if target_user == u %} selected{% endif %}>{{ u }}{% if u == current_user.id %} (Master Admin){% endif %}</option>
+      {%- endfor -%}
+    </select>
+  </div>
+</div>
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const sel = document.getElementById('manageUserSelect');
+    if (!sel || typeof TomSelect === 'undefined') return;
+    // Explicit init (data-no-enhance keeps the shell auto-enhance out of this).
+    // dropdownParent:'body' prevents z-index/clipping issues from the parent card.
+    // We track initial-sync so TomSelect's first internal value-sync doesn't trigger navigation.
+    let ready = false;
+    const initial = sel.value;
+    const ts = new TomSelect(sel, {
+      controlInput: null,         // no search input — small finite user list
+      maxOptions: 500,
+      placeholder: 'Select a user to manage...',
+      dropdownParent: 'body',
+      render: {
+        option: function (data, esc) { return '<div style="padding:8px 12px; font-size:13px;">' + esc(data.text) + '</div>'; },
+        item:   function (data, esc) { return '<div>' + esc(data.text) + '</div>'; },
+      },
+      onChange: function (val) {
+        if (!ready) return;                 // skip the initial sync
+        if (!val || val === initial) return; // skip no-op selection
+        saNavTo('?edit_user=' + encodeURIComponent(val), 'Loading User…', '');
+      },
+    });
+    // After Tom Select finishes its internal sync, enable the change handler.
+    setTimeout(() => { ready = true; }, 50);
+  });
+</script>
+
+{% if target_user != current_user.id %}
+
+  {# ── Top row: Access + Password + Rename ── #}
+  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:14px; margin-bottom:18px;">
+
+    <div class="card">
+      <div class="card-body" style="display:flex; flex-direction:column; gap:12px;">
+        <div class="card-title">Login Access</div>
+        <div class="text-sm text-muted">Status:
+          {% if target_is_active %}<span class="pill pill-green">Active</span>
+          {% else %}<span class="pill pill-red">Inactive</span>{% endif %}
+        </div>
+        <form method="POST" style="margin-top:auto;">
+          <input type="hidden" name="target_user_id" value="{{ target_user }}">
+          <input type="hidden" name="toggle_active" value="{{ 'false' if target_is_active else 'true' }}">
+          {% if target_is_active %}
+            <button type="submit" class="btn btn-danger" style="width:100%;">Block Access</button>
+          {% else %}
+            <button type="submit" class="btn btn-success" style="width:100%;">Unblock Access</button>
+          {% endif %}
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body" style="display:flex; flex-direction:column; gap:8px;">
+        <div class="card-title">Reset Password</div>
+        <form method="POST" action="/reset-password" style="display:flex; flex-direction:column; gap:8px; margin-top:auto;">
+          <input type="hidden" name="target_user_id" value="{{ target_user }}">
+          <input type="text" name="reset_password" placeholder="New password" required>
+          <button type="submit" class="btn btn-ghost">Set Password</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body" style="display:flex; flex-direction:column; gap:8px;">
+        <div class="card-title">Rename User ID</div>
+        <form id="renameUserForm" method="POST" style="display:flex; flex-direction:column; gap:8px; margin-top:auto;">
+          <input type="hidden" name="target_user_id" value="{{ target_user }}">
+          <input type="hidden" name="action_rename_user" value="true">
+          <input type="text" name="new_sub_username" placeholder="New username" required>
+          <button type="button" class="btn btn-ghost" onclick="confirmRenameUser()">Rename</button>
+        </form>
+        <script>
+        async function confirmRenameUser() {
+          const input = document.querySelector('#renameUserForm [name="new_sub_username"]');
+          if (!input.value.trim()) { input.reportValidity(); return; }
+          const ok = await sdConfirm('Rename user to <strong>' + input.value.trim() + '</strong>?<br><span style="font-size:12px;color:#9ca3af;">All their data will be migrated to the new username.</span>', 'Rename User', { okLabel: 'Rename', cancelLabel: 'Cancel' });
+          if (!ok) return;
+          sdLoading('Renaming User…', 'Migrating all user data');
+          document.getElementById('renameUserForm').submit();
+        }
+        </script>
+      </div>
+    </div>
+
+  </div>
+
+  {# ── Permissions card ── #}
+  <div class="card mb-md">
+    <div class="card-header">
+      <div class="card-title">
+        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+        </svg>
+        Module Permissions — <span style="color:var(--ink-muted); font-weight:500;">{{ target_user }}</span>
+      </div>
+      <span class="pill pill-purple" style="font-size:11px;">Master Only</span>
+    </div>
+    <div class="card-body">
+      <form method="POST">
+        <input type="hidden" name="target_user_id" value="{{ target_user }}">
+        <input type="hidden" name="update_perms" value="true">
+
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px,1fr)); gap:20px; margin-bottom:18px;">
+
+          {# Transactions #}
+          <div>
+            <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--ink-muted); margin-bottom:10px;">Transactions</div>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+
+              <label class="perm-row {% if 'sale' in target_perms %}perm-on{% endif %}">
+                <input type="checkbox" name="perm_sale" value="true" {% if 'sale' in target_perms %}checked{% endif %}>
+                <div>
+                  <div class="perm-label">Sales Invoices &amp; Credit Notes</div>
+                  <div class="perm-sub">Create &amp; view all sales documents</div>
+                </div>
+              </label>
+
+              <label class="perm-row {% if 'purchase' in target_perms %}perm-on{% endif %}">
+                <input type="checkbox" name="perm_purchase" value="true" {% if 'purchase' in target_perms %}checked{% endif %}>
+                <div>
+                  <div class="perm-label">Purchase Bills, POs &amp; GRNs</div>
+                  <div class="perm-sub">Create &amp; view all purchase documents</div>
+                </div>
+              </label>
+
+              <label class="perm-row {% if 'shipping' in target_perms %}perm-on{% endif %}">
+                <input type="checkbox" name="perm_shipping" value="true" {% if 'shipping' in target_perms %}checked{% endif %}>
+                <div>
+                  <div class="perm-label">Create B2B Shipments</div>
+                  <div class="perm-sub">Push sale invoices to RapidShyp as B2B orders</div>
+                </div>
+              </label>
+
+              <label class="perm-row {% if 'easyecom' in target_perms %}perm-on{% endif %}">
+                <input type="checkbox" name="perm_easyecom" value="true" {% if 'easyecom' in target_perms %}checked{% endif %}>
+                <div>
+                  <div class="perm-label">Easyecom Inventory Sync</div>
+                  <div class="perm-sub">Sync stock levels with Easyecom warehouse</div>
+                </div>
+              </label>
+
+            </div>
+          </div>
+
+          {# Finance #}
+          <div>
+            <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--ink-muted); margin-bottom:10px;">Finance</div>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+
+              <label class="perm-row {% if 'expenses' in target_perms %}perm-on{% endif %}">
+                <input type="checkbox" name="perm_expenses" value="true" {% if 'expenses' in target_perms %}checked{% endif %}>
+                <div>
+                  <div class="perm-label">Expense Management</div>
+                  <div class="perm-sub">Add &amp; view business expenses</div>
+                </div>
+              </label>
+
+              <label class="perm-row {% if 'accounts' in target_perms %}perm-on{% endif %}">
+                <input type="checkbox" name="perm_accounts" value="true" {% if 'accounts' in target_perms %}checked{% endif %}>
+                <div>
+                  <div class="perm-label">Accounts &amp; Reports</div>
+                  <div class="perm-sub">P&amp;L, Trial Balance, Ledger</div>
+                </div>
+              </label>
+
+              <label class="perm-row {% if 'reports' in target_perms %}perm-on{% endif %}">
+                <input type="checkbox" name="perm_reports" value="true" {% if 'reports' in target_perms %}checked{% endif %}>
+                <div>
+                  <div class="perm-label">Download Reports</div>
+                  <div class="perm-sub">Export Excel &amp; PDF files</div>
+                </div>
+              </label>
+
+            </div>
+          </div>
+
+          {# Master Data #}
+          <div>
+            <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--ink-muted); margin-bottom:10px;">Master Data</div>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+
+              <label class="perm-row {% if 'vendors' in target_perms %}perm-on{% endif %}">
+                <input type="checkbox" name="perm_vendors" value="true" {% if 'vendors' in target_perms %}checked{% endif %}>
+                <div>
+                  <div class="perm-label">Vendors &amp; Parties</div>
+                  <div class="perm-sub">Add &amp; edit contacts</div>
+                </div>
+              </label>
+
+              <label class="perm-row {% if 'products' in target_perms %}perm-on{% endif %}">
+                <input type="checkbox" name="perm_products" value="true" {% if 'products' in target_perms %}checked{% endif %}>
+                <div>
+                  <div class="perm-label">Products Catalog</div>
+                  <div class="perm-sub">Add &amp; edit products / items</div>
+                </div>
+              </label>
+
+              <label class="perm-row {% if 'inventory' in target_perms %}perm-on{% endif %}">
+                <input type="checkbox" name="perm_inventory" value="true" {% if 'inventory' in target_perms %}checked{% endif %}>
+                <div>
+                  <div class="perm-label">Inventory Management</div>
+                  <div class="perm-sub">Adjust &amp; track stock levels</div>
+                </div>
+              </label>
+
+              <label class="perm-row {% if 'profile' in target_perms %}perm-on{% endif %}">
+                <input type="checkbox" name="perm_profile" value="true" {% if 'profile' in target_perms %}checked{% endif %}>
+                <div>
+                  <div class="perm-label">Edit Company Profile</div>
+                  <div class="perm-sub">Update company details &amp; bank info</div>
+                </div>
+              </label>
+
+            </div>
+          </div>
+
+        </div>
+
+        <div style="display:flex; gap:10px; align-items:center;">
+          <button type="submit" class="btn btn-primary">Save Permissions</button>
+          <span class="text-xs text-muted">Changes take effect on the user's next page load.</span>
+        </div>
+      </form>
+    </div>
+  </div>
+
+{% endif %}
+{% endif %}
+
+{# ── Sub-user self-service section ── #}
+{% if not current_user.is_master %}
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:18px;">
+
+  {# What I can access #}
+  <div class="card">
+    <div class="card-header"><div class="card-title">My Access</div></div>
+    <div class="card-body">
+      <div style="display:flex; flex-wrap:wrap; gap:8px;">
+        {% if current_user.has_permission('sale') %}<span class="pill pill-green">✓ Sales Invoices</span>{% endif %}
+        {% if current_user.has_permission('purchase') %}<span class="pill pill-green">✓ Purchase &amp; GRNs</span>{% endif %}
+        {% if current_user.has_permission('expenses') %}<span class="pill pill-green">✓ Expenses</span>{% endif %}
+        {% if current_user.has_permission('vendors') %}<span class="pill pill-green">✓ Vendors &amp; Parties</span>{% endif %}
+        {% if current_user.has_permission('accounts') %}<span class="pill pill-green">✓ Accounts &amp; Reports</span>{% endif %}
+        {% if current_user.has_permission('reports') %}<span class="pill pill-green">✓ Download Reports</span>{% endif %}
+        {% if current_user.has_permission('products') %}<span class="pill pill-green">✓ Products Catalog</span>{% endif %}
+        {% if current_user.has_permission('inventory') %}<span class="pill pill-green">✓ Inventory</span>{% endif %}
+        {% if current_user.has_permission('profile') %}<span class="pill pill-green">✓ Edit Profile</span>{% endif %}
+        {% if not current_user.has_permission('sale') and not current_user.has_permission('purchase')
+           and not current_user.has_permission('expenses') and not current_user.has_permission('vendors') %}
+          <span class="text-muted" style="font-size:13px;">No modules assigned yet. Contact your administrator.</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# Change own password #}
+  <div class="card">
+    <div class="card-header"><div class="card-title">Change My Password</div></div>
+    <div class="card-body">
+      <form method="POST" action="/profile/change-own-password" style="display:flex; flex-direction:column; gap:10px;">
+        <div>
+          <label class="field-label">Current Password</label>
+          <input type="password" name="current_password" required class="input" placeholder="Your current password">
+        </div>
+        <div>
+          <label class="field-label">New Password</label>
+          <input type="password" name="new_password" required class="input" placeholder="Min 6 characters">
+        </div>
+        <div>
+          <label class="field-label">Confirm New Password</label>
+          <input type="password" name="confirm_password" required class="input" placeholder="Repeat new password">
+        </div>
+        <button type="submit" class="btn btn-primary">Update Password</button>
+      </form>
+    </div>
+  </div>
+
+</div>
+{% endif %}
+
+{% set can_edit_profile = current_user.is_master or current_user.has_permission('profile') %}
+
+<div class="card" style="position:relative;">
+  <div class="card-header">
+    <div class="card-title">Company &amp; Invoice Profile</div>
+    {% if current_user.is_master %}
+      <span class="pill pill-purple">Master</span>
+    {% elif can_edit_profile %}
+      <span class="pill pill-green">Editable</span>
+    {% else %}
+      <span class="pill pill-slate">Read Only</span>
+    {% endif %}
+  </div>
+  <div class="card-body">
+    <form method="POST" enctype="multipart/form-data" style="display:grid; grid-template-columns:1fr 1fr; gap:20px; position:relative;">
+      <input type="hidden" name="target_user_id" value="{{ target_user }}">
+
+      {% if not can_edit_profile %}
+      <div style="position:absolute; inset:-18px -20px; background:rgba(255,255,255,0.65); z-index:5; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(1px); border-radius:var(--radius);">
+        <div class="alert alert-warn">Contact Administrator to change details.</div>
+      </div>
+      {% endif %}
+
+      <div style="grid-column:1 / -1; background:var(--surface-2); padding:16px; border-radius:var(--radius); border:1px solid var(--border);">
+        <div class="font-bold mb-sm" style="font-size:13px;">Invoice Configuration</div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px;">
+          <div>
+            <label class="field-label">Invoice Number Prefix</label>
+            <input type="text" name="invoice_prefix" value="{{ profile.get('invoice_prefix','TE') }}" style="text-transform:uppercase; font-weight:700;" {% if not can_edit_profile %}disabled{% endif %}>
+          </div>
+          <div>
+            <label class="field-label">Preview</label>
+            <input type="text" readonly value="{{ profile.get('invoice_prefix','TE') }}/2025-26/0001" style="font-family:'JetBrains Mono',monospace;">
+          </div>
+          {% if current_user.is_master %}
+          <div>
+            <label class="field-label">Invoice Type</label>
+            <select name="invoice_type">
+              <option value="goods" {% if profile.get('invoice_type','goods') == 'goods' %}selected{% endif %}>Goods (Show Ship To, Rate Incl. Tax)</option>
+              <option value="service" {% if profile.get('invoice_type') == 'service' %}selected{% endif %}>Service (No Ship To, Rate Excl. Tax)</option>
+            </select>
+            <div class="text-xs text-muted mt-sm">Applies globally to all invoices.</div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div>
+        <div class="font-bold mb-md" style="font-size:13px; border-bottom:1px solid var(--border); padding-bottom:8px;">Company Details</div>
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <div><label class="field-label">Company Name</label><input type="text" name="company_name" value="{{ profile.get('company_name','') }}" {% if not can_edit_profile %}disabled{% endif %}></div>
+          <div><label class="field-label">Address Line 1</label><input type="text" name="address_1" value="{{ profile.get('address_1','') }}" {% if not can_edit_profile %}disabled{% endif %}></div>
+          <div><label class="field-label">Address Line 2</label><input type="text" name="address_2" value="{{ profile.get('address_2','') }}" {% if not can_edit_profile %}disabled{% endif %}></div>
+          <div><label class="field-label">Phone</label><input type="text" name="phone" value="{{ profile.get('phone','') }}" {% if not can_edit_profile %}disabled{% endif %}></div>
+          <div><label class="field-label">Email (for OTP &amp; Reports)</label><input type="email" name="email" value="{{ profile.get('email','') }}" {% if not can_edit_profile %}disabled{% endif %}></div>
+          <div><label class="field-label">GSTIN</label><input type="text" name="gstin" value="{{ profile.get('gstin','') }}" style="text-transform:uppercase;" {% if not can_edit_profile %}disabled{% endif %}></div>
+          <div>
+            <label class="field-label">Business State</label>
+            <select name="state" {% if not can_edit_profile %}disabled{% endif %}>
+              <option value="">Select State</option>
+              {% for state in ['Delhi','Haryana','Uttar Pradesh','Maharashtra','Karnataka','Tamil Nadu','Gujarat','Rajasthan','West Bengal','Punjab','Andhra Pradesh','Telangana','Madhya Pradesh','Bihar','Odisha','Kerala','Jharkhand','Assam','Chhattisgarh','Uttarakhand','Himachal Pradesh','Jammu and Kashmir','Ladakh','Chandigarh','Goa','Tripura','Meghalaya','Manipur','Nagaland','Arunachal Pradesh','Mizoram','Sikkim','Andaman and Nicobar Islands','Dadra and Nagar Haveli','Lakshadweep','Puducherry'] %}
+                <option value="{{ state }}" {% if profile.get('state') == state %}selected{% endif %}>{{ state }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="font-bold mb-md" style="font-size:13px; border-bottom:1px solid var(--border); padding-bottom:8px;">Bank Details</div>
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <div><label class="field-label">Bank Name</label><input type="text" name="bank_name" value="{{ profile.get('bank_name','') }}" {% if not can_edit_profile %}disabled{% endif %}></div>
+          <div><label class="field-label">Account Holder</label><input type="text" name="account_holder" value="{{ profile.get('account_holder','') }}" {% if not can_edit_profile %}disabled{% endif %}></div>
+          <div><label class="field-label">Account Number</label><div class="secret-wrap"><input type="password" name="account_no" value="{{ profile.get('account_no','') }}" {% if not can_edit_profile %}disabled{% endif %} autocomplete="off">{{ eye_btn() }}</div></div>
+          <div><label class="field-label">IFSC Code</label><div class="secret-wrap"><input type="password" name="ifsc" value="{{ profile.get('ifsc','') }}" style="text-transform:uppercase;" {% if not can_edit_profile %}disabled{% endif %} autocomplete="off">{{ eye_btn() }}</div></div>
+
+          <div style="background:var(--green-light); border:1px solid #a7f3d0; padding:12px; border-radius:var(--radius-sm);">
+            <label class="field-label" style="color:var(--green-dark);">UPI ID (for Invoice Payment QR)</label>
+            <div class="secret-wrap"><input type="password" name="upi_id" value="{{ profile.get('upi_id','') }}" placeholder="e.g. yourname@ybl or 9876543210@upi" style="font-family:'JetBrains Mono',monospace;" {% if not can_edit_profile %}disabled{% endif %} autocomplete="off">{{ eye_btn() }}</div>
+            <div class="text-xs mt-sm" style="color:var(--green-dark);">When set, each invoice PDF includes a UPI QR code with pre-filled amount.</div>
+            {% if profile.get('upi_id') %}
+              <div class="mt-sm"><span class="pill pill-green">✓ UPI configured</span></div>
+            {% endif %}
+          </div>
+
+          <div style="background:#eff6ff; border:1px solid #bfdbfe; padding:12px; border-radius:var(--radius-sm);">
+            <div style="font-weight:700; font-size:12px; color:#1d4ed8; margin-bottom:8px;">
+              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" style="vertical-align:-2px; margin-right:4px;"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+              RapidShyp B2B Shipping Integration
+            </div>
+            <label class="field-label" style="color:#1d4ed8;">API Key</label>
+            <div class="secret-wrap"><input type="password" name="rapidshyp_api_key" value="{{ profile.get('rapidshyp_api_key','') }}" placeholder="Paste your RapidShyp API key" style="font-family:'JetBrains Mono',monospace; font-size:12px;" {% if not can_edit_profile %}disabled{% endif %} autocomplete="off">{{ eye_btn() }}</div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:8px;">
+              <div>
+                <label class="field-label" style="color:#1d4ed8;">Pickup Location Name</label>
+                <input type="text" name="rapidshyp_pickup_location" value="{{ profile.get('rapidshyp_pickup_location','') }}" placeholder="e.g. DelhiLL" {% if not can_edit_profile %}disabled{% endif %}>
+              </div>
+              <div>
+                <label class="field-label" style="color:#1d4ed8;">Store Name</label>
+                <input type="text" name="rapidshyp_store_name" value="{{ profile.get('rapidshyp_store_name','DEFAULT') }}" placeholder="DEFAULT" {% if not can_edit_profile %}disabled{% endif %}>
+              </div>
+            </div>
+            <div class="text-xs mt-sm" style="color:#1d4ed8;">When configured, a "Ship" button appears on each sale invoice to push it to RapidShyp as a B2B order.</div>
+            {% if profile.get('rapidshyp_api_key') %}
+              <div class="mt-sm"><span class="pill" style="background:#dbeafe; color:#1d4ed8; border:1px solid #bfdbfe;">✓ RapidShyp connected — Pickup: {{ profile.get('rapidshyp_pickup_location','DEFAULT') }}</span></div>
+            {% endif %}
+          </div>
+
+          <div style="background:#f0fdf4; border:1px solid #bbf7d0; padding:12px; border-radius:var(--radius-sm);">
+            <div style="font-weight:700; font-size:12px; color:#15803d; margin-bottom:8px;">
+              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" style="vertical-align:-2px; margin-right:4px;"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7M4 7c0-2 1-3 3-3h10c2 0 3 1 3 3M4 7h16M9 11h6M9 15h6"/></svg>
+              Easyecom Inventory Sync
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+              <div>
+                <label class="field-label" style="color:#15803d;">API Key (X-API-Key)</label>
+                <div class="secret-wrap"><input type="password" name="easyecom_api_key" value="{{ profile.get('easyecom_api_key','') }}" placeholder="From Account Settings → Change Credentials" style="font-family:'JetBrains Mono',monospace; font-size:12px;" {% if not can_edit_profile %}disabled{% endif %} autocomplete="off">{{ eye_btn() }}</div>
+              </div>
+              <div style="grid-column:1 / -1;">
+                <label class="field-label" style="color:#15803d;">JWT Token — paste from Easyecom dashboard (valid 90 days)</label>
+                <div class="secret-wrap"><input type="password" name="easyecom_jwt_token" value="{{ profile.get('easyecom_jwt_token','') }}" placeholder="eyJ…  (preferred over email/password below)" style="font-family:'JetBrains Mono',monospace; font-size:11px;" {% if not can_edit_profile %}disabled{% endif %} autocomplete="off">{{ eye_btn() }}</div>
+              </div>
+              <div style="grid-column:1 / -1; font-size:11px; color:#15803d; margin-top:-4px; margin-bottom:2px;">— OR auto-generate JWT from your Easyecom login credentials —</div>
+              <div>
+                <label class="field-label" style="color:#15803d;">Login Email</label>
+                <input type="email" name="easyecom_email" value="{{ profile.get('easyecom_email','') }}" placeholder="your@email.com" {% if not can_edit_profile %}disabled{% endif %}>
+              </div>
+              <div>
+                <label class="field-label" style="color:#15803d;">Login Password</label>
+                <div class="secret-wrap"><input type="password" name="easyecom_password" value="{{ profile.get('easyecom_password','') }}" placeholder="Easyecom login password" autocomplete="new-password" {% if not can_edit_profile %}disabled{% endif %}>{{ eye_btn() }}</div>
+              </div>
+              <div>
+                <label class="field-label" style="color:#15803d;">Location Key</label>
+                <input type="text" name="easyecom_location_key" value="{{ profile.get('easyecom_location_key','') }}" placeholder="e.g. LOC001" {% if not can_edit_profile %}disabled{% endif %}>
+              </div>
+              <div>
+                <label class="field-label" style="color:#15803d;">Monthly API Hit Limit</label>
+                <input type="number" name="easyecom_hit_limit" value="{{ profile.get('easyecom_hit_limit', 250) }}" min="1" max="1000" {% if not can_edit_profile %}disabled{% endif %}>
+              </div>
+            </div>
+            <div style="margin-top:10px; display:flex; align-items:center; gap:10px;">
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px; font-weight:600; color:#15803d;">
+                <input type="checkbox" name="easyecom_auto_push" value="true" {% if profile.get('easyecom_auto_push') %}checked{% endif %} {% if not can_edit_profile %}disabled{% endif %} style="width:16px; height:16px; accent-color:#16a34a;">
+                Auto-push adjustments to Easyecom on every invoice
+              </label>
+            </div>
+            <div class="text-xs mt-sm" style="color:#15803d;">
+              Sync (pull) costs 1 hit per 50 SKUs fetched. Push costs 1 hit per distinct SKU updated. Auto-push fires after every invoice — keep it off for high-volume days and use the manual Push button instead.
+              <br>Set Easyecom account to <strong>Account Settings → Other Settings → "Add new stock"</strong> mode so Sahayak can send delta changes (positive = add, negative = deduct).
+            </div>
+            {% if profile.get('easyecom_api_key') %}
+              <div class="mt-sm"><span class="pill" style="background:#dcfce7; color:#15803d; border:1px solid #bbf7d0;">✓ Easyecom configured — go to Inventory → Easyecom Sync to test connection</span></div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div style="grid-column:1 / -1; border-top:1px solid var(--border); padding-top:18px;">
+        <div class="font-bold mb-md" style="font-size:13px;">Branding Assets</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+          <div style="background:var(--surface-2); padding:14px; border-radius:var(--radius); border:1px solid var(--border);">
+            <label class="field-label">Company Logo</label>
+            <input type="file" name="logo" accept="image/*" {% if not can_edit_profile %}disabled{% endif %}>
+            {% if profile.get('logo_base64') %}
+              <div style="margin-top:10px; padding:8px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); display:inline-block;">
+                <img src="data:image/png;base64,{{ profile.logo_base64 }}" style="height:48px; object-fit:contain;">
+              </div>
+            {% endif %}
+          </div>
+          <div style="background:var(--surface-2); padding:14px; border-radius:var(--radius); border:1px solid var(--border);">
+            <label class="field-label">Authorized Signature</label>
+            <input type="file" name="signature" accept="image/*" {% if not can_edit_profile %}disabled{% endif %}>
+            {% if profile.get('signature_base64') %}
+              <div style="margin-top:10px; padding:8px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); display:inline-block;">
+                <img src="data:image/png;base64,{{ profile.signature_base64 }}" style="height:40px; object-fit:contain;">
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      {% if can_edit_profile %}
+      <div style="grid-column:1 / -1; text-align:center; margin-top:10px;">
+        <button type="submit" class="btn btn-primary btn-lg">Save Changes</button>
+      </div>
+      {% endif %}
+    </form>
+  </div>
+</div>
+
+{% include "_shell_end.html" %}
+<script>
+const EYE     = '<svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>';
+const EYE_OFF = '<svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg>';
+
+function toggleReveal(btn) {
+  const inp = btn.closest('.secret-wrap').querySelector('input');
+  const hiding = inp.type === 'text';
+  inp.type = hiding ? 'password' : 'text';
+  btn.innerHTML = hiding ? EYE : EYE_OFF;
+  btn.title = hiding ? 'Show' : 'Hide';
+}
+</script>
+</body>
+</html>

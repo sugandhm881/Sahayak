@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>Vendors &amp; Parties — {{ profile.get('company_name', 'Sahayak ERP') }}</title>
+{% include "_shell_head.html" %}
+<style>
+.vendor-type-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .3px;
+  text-transform: uppercase;
+}
+.vtype-vendor  { background: #fff3e0; color: #e65100; }
+.vtype-client  { background: #e3f2fd; color: #1565c0; }
+.vtype-both    { background: #e8f5e9; color: #2e7d32; }
+.vendor-table th { white-space: nowrap; }
+.vendor-table td { vertical-align: middle; }
+.vendor-search-wrap { position: relative; }
+.vendor-search-wrap input { padding-left: 32px; }
+.vendor-search-wrap .search-icon {
+  position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
+  color: var(--ink-muted); pointer-events: none;
+}
+.form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 600px) { .form-grid-2 { grid-template-columns: 1fr; } }
+.section-divider {
+  font-size: 11px; font-weight: 700; color: var(--ink-muted);
+  text-transform: uppercase; letter-spacing: .6px;
+  margin: 16px 0 8px; border-bottom: 1px solid var(--border); padding-bottom: 4px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.section-divider span { display: block; }
+.ship-same-label {
+  font-weight: 500; font-size: 12px; cursor: pointer; margin: 0;
+  display: flex; align-items: center; gap: 5px;
+  text-transform: none; letter-spacing: 0; color: var(--ink-2);
+}
+</style>
+</head>
+<body>
+{% set active_nav = 'vendors' %}
+{% set page_title = 'Vendors & Parties' %}
+{% set page_sub = 'Manage vendors, clients and channel partners' %}
+{% include "_shell_start.html" %}
+
+<div class="flex items-center gap-md mb-md" style="flex-wrap:wrap;">
+  <div class="vendor-search-wrap" style="flex:1; min-width:200px; max-width:340px;">
+    <svg class="search-icon" width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+    <input id="vendorSearch" type="text" class="input" placeholder="Search by name, GSTIN, phone…" oninput="filterVendors()">
+  </div>
+  <select id="typeFilter" class="input" data-no-enhance style="min-width:140px;" onchange="filterVendors()">
+    <option value="">All Types</option>
+    <option value="vendor">Vendor</option>
+    <option value="client">Client</option>
+    <option value="both">Channel Partner</option>
+  </select>
+  <button class="btn btn-primary" onclick="openVendorModal()">+ New Party</button>
+</div>
+
+<div class="card">
+  <div style="overflow-x:auto;">
+    <table class="table vendor-table" id="vendorTable">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>GSTIN</th>
+          <th>Phone</th>
+          <th>Email</th>
+          <th>Billing Address</th>
+          <th style="width:90px;"></th>
+        </tr>
+      </thead>
+      <tbody id="vendorTbody">
+        <tr><td colspan="7" class="text-center text-muted" style="padding:32px;">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Create / Edit Modal -->
+<div id="vendorModal" class="modal-backdrop hidden" onclick="if(event.target===this)closeVendorModal()">
+  <div class="modal" style="max-width:600px; width:95%;">
+    <div class="modal-header">
+      <div class="modal-title" id="vendorModalTitle">New Party</div>
+      <button class="modal-close" onclick="closeVendorModal()">&times;</button>
+    </div>
+    <div class="modal-body" style="max-height:78vh; overflow-y:auto; padding-right:18px;">
+      <input type="hidden" id="vOriginalName">
+
+      <!-- Basic -->
+      <div class="form-grid-2">
+        <div style="grid-column:1/-1;">
+          <label class="field-label">Full Name *</label>
+          <input id="vName" type="text" class="input" placeholder="e.g. Sharma Traders Pvt Ltd">
+        </div>
+        <div>
+          <label class="field-label">Type</label>
+          <select id="vType" class="input" data-no-enhance>
+            <option value="vendor">Vendor (Payable)</option>
+            <option value="client">Client (Receivable)</option>
+            <option value="both">Channel Partner (Both)</option>
+          </select>
+        </div>
+        <div>
+          <label class="field-label">GSTIN</label>
+          <input id="vGstin" type="text" class="input" placeholder="22AAAAA0000A1Z5" maxlength="15" style="text-transform:uppercase;" oninput="this.value=this.value.toUpperCase()">
+        </div>
+      </div>
+
+      <!-- Contact -->
+      <div class="section-divider"><span>Contact</span></div>
+      <div class="form-grid-2">
+        <div>
+          <label class="field-label">Phone / Mobile</label>
+          <input id="vMobile" type="tel" class="input" placeholder="9876543210">
+        </div>
+        <div>
+          <label class="field-label">Email</label>
+          <input id="vEmail" type="email" class="input" placeholder="contact@example.com">
+        </div>
+      </div>
+
+      <!-- Billing Address -->
+      <div class="section-divider"><span>Billing Address</span></div>
+      <div class="form-grid-2">
+        <div style="grid-column:1/-1;">
+          <label class="field-label">Address Line 1</label>
+          <input id="vAddr1" type="text" class="input" placeholder="Flat / Building / Street" oninput="syncBillToShip()">
+        </div>
+        <div style="grid-column:1/-1;">
+          <label class="field-label">Address Line 2</label>
+          <input id="vAddr2" type="text" class="input" placeholder="Area / Landmark" oninput="syncBillToShip()">
+        </div>
+        <div>
+          <label class="field-label">Pincode</label>
+          <input id="vPincode" type="text" class="input" placeholder="6 digits" maxlength="6" oninput="fetchVendorPincode('bill');syncBillToShip()" onblur="fetchVendorPincode('bill')">
+        </div>
+        <div>
+          <label class="field-label">District</label>
+          <input id="vDistrict" type="text" class="input" placeholder="Auto-fill" oninput="syncBillToShip()">
+        </div>
+        <div style="grid-column:1/-1;">
+          <label class="field-label">State</label>
+          <select id="vState" class="input" data-no-enhance style="min-width:200px;" onchange="syncBillToShip()">
+            <option value="">Select State</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Shipping Address -->
+      <div class="section-divider">
+        <span>Shipping Address</span>
+        <label class="ship-same-label">
+          <input type="checkbox" id="vShipSame" onchange="toggleVShipSame()"> Same as Billing
+        </label>
+      </div>
+      <div id="vShipBlock">
+        <div class="form-grid-2">
+          <div style="grid-column:1/-1;">
+            <label class="field-label">Address Line 1</label>
+            <input id="vShipAddr1" type="text" class="input" placeholder="Flat / Building / Street">
+          </div>
+          <div style="grid-column:1/-1;">
+            <label class="field-label">Address Line 2</label>
+            <input id="vShipAddr2" type="text" class="input" placeholder="Area / Landmark">
+          </div>
+          <div>
+            <label class="field-label">Pincode</label>
+            <input id="vShipPincode" type="text" class="input" placeholder="6 digits" maxlength="6" oninput="fetchVendorPincode('ship')" onblur="fetchVendorPincode('ship')">
+          </div>
+          <div>
+            <label class="field-label">District</label>
+            <input id="vShipDistrict" type="text" class="input" placeholder="Auto-fill">
+          </div>
+          <div style="grid-column:1/-1;">
+            <label class="field-label">State</label>
+            <select id="vShipState" class="input" data-no-enhance style="min-width:200px;">
+              <option value="">Select State</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bank Details -->
+      <div class="section-divider"><span>Bank Details (optional)</span></div>
+      <div class="form-grid-2">
+        <div>
+          <label class="field-label">Bank Name</label>
+          <input id="vBankName" type="text" class="input" placeholder="HDFC Bank">
+        </div>
+        <div>
+          <label class="field-label">Account Number</label>
+          <input id="vBankAcc" type="text" class="input" placeholder="1234567890">
+        </div>
+        <div>
+          <label class="field-label">IFSC Code</label>
+          <input id="vBankIfsc" type="text" class="input" placeholder="HDFC0001234" style="text-transform:uppercase;" oninput="this.value=this.value.toUpperCase()">
+        </div>
+      </div>
+
+      <div id="vendorModalErr" class="text-danger" style="display:none; margin-top:10px;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeVendorModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveVendor()">Save Party</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete confirm modal -->
+<div id="deleteModal" class="modal-backdrop hidden" onclick="if(event.target===this)closeDeleteModal()">
+  <div class="modal" style="max-width:400px; width:95%;">
+    <div class="modal-header">
+      <div class="modal-title">Delete Party</div>
+      <button class="modal-close" onclick="closeDeleteModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p>Delete <strong id="deleteVendorName"></strong>? This removes the contact record only — existing transactions and journal entries are not affected.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeDeleteModal()">Cancel</button>
+      <button class="btn btn-danger" onclick="confirmDelete()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const VENDOR_STATES = [
+  'Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh','Goa','Gujarat',
+  'Haryana','Himachal Pradesh','Jharkhand','Karnataka','Kerala','Madhya Pradesh',
+  'Maharashtra','Manipur','Meghalaya','Mizoram','Nagaland','Odisha','Punjab',
+  'Rajasthan','Sikkim','Tamil Nadu','Telangana','Tripura','Uttar Pradesh',
+  'Uttarakhand','West Bengal','Andaman and Nicobar Islands','Chandigarh',
+  'Dadra and Nagar Haveli and Daman and Diu','Delhi','Jammu and Kashmir',
+  'Ladakh','Lakshadweep','Puducherry'
+];
+
+let allVendors = [];
+let deleteTarget = null;
+const TYPE_LABELS = { vendor: 'Vendor', client: 'Client', both: 'Channel Partner' };
+const TYPE_CLASS  = { vendor: 'vtype-vendor', client: 'vtype-client', both: 'vtype-both' };
+
+function escH(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function loadVendors() {
+  try {
+    const r = await fetch('/v2/vendors');
+    const j = await r.json();
+    allVendors = j.vendors || [];
+    renderVendors(allVendors);
+  } catch (e) {
+    document.getElementById('vendorTbody').innerHTML =
+      `<tr><td colspan="7" class="text-center text-danger">Failed to load: ${e.message}</td></tr>`;
+  }
+}
+
+function getType(d) { return (d && d.type) ? d.type : 'client'; }
+
+function renderVendors(list) {
+  const tbody = document.getElementById('vendorTbody');
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted" style="padding:32px;">No parties found. Click "+ New Party" to add one.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = list.map(v => {
+    const d = v.data || {};
+    const type = getType(d);
+    const badge = `<span class="vendor-type-badge ${escH(TYPE_CLASS[type]||'vtype-client')}">${escH(TYPE_LABELS[type]||type)}</span>`;
+    const addr = [d.address1 || d.address, d.district, d.state].filter(Boolean).join(', ');
+    return `<tr>
+      <td><strong>${escH(v.name)}</strong></td>
+      <td>${badge}</td>
+      <td><code style="font-size:11px;">${escH(d.gstin||'—')}</code></td>
+      <td>${escH(d.mobile||'—')}</td>
+      <td>${escH(d.email||'—')}</td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escH(addr)}">${escH(addr||'—')}</td>
+      <td style="white-space:nowrap;">
+        <button class="btn btn-sm btn-secondary" onclick='editVendor(${JSON.stringify(v.name)})'>Edit</button>
+        <button class="btn btn-sm btn-danger" onclick='promptDelete(${JSON.stringify(v.name)})' style="margin-left:4px;">Del</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function filterVendors() {
+  const q = document.getElementById('vendorSearch').value.toLowerCase();
+  const t = document.getElementById('typeFilter').value;
+  const filtered = allVendors.filter(v => {
+    const d = v.data || {};
+    const matchType = !t || getType(d) === t;
+    const matchQ = !q
+      || v.name.toLowerCase().includes(q)
+      || (d.gstin||'').toLowerCase().includes(q)
+      || (d.mobile||'').includes(q)
+      || (d.email||'').toLowerCase().includes(q);
+    return matchType && matchQ;
+  });
+  renderVendors(filtered);
+}
+
+function openVendorModal(name, data) {
+  document.getElementById('vendorModalTitle').textContent = name ? 'Edit Party' : 'New Party';
+  document.getElementById('vOriginalName').value = name || '';
+  document.getElementById('vName').value = name || '';
+  const d = data || {};
+
+  document.getElementById('vType').value  = d.type || 'vendor';
+  document.getElementById('vGstin').value = d.gstin || '';
+  document.getElementById('vMobile').value = d.mobile || '';
+  document.getElementById('vEmail').value  = d.email || '';
+
+  // Billing — backward compat: old records used 'address', new use 'address1'
+  document.getElementById('vAddr1').value    = d.address1 || d.address || '';
+  document.getElementById('vAddr2').value    = d.address2 || '';
+  document.getElementById('vPincode').value  = d.pincode || '';
+  document.getElementById('vDistrict').value = d.district || '';
+  document.getElementById('vState').value = d.state || '';
+
+  // Shipping
+  document.getElementById('vShipSame').checked      = false;
+  document.getElementById('vShipBlock').style.opacity      = '';
+  document.getElementById('vShipBlock').style.pointerEvents = '';
+  document.getElementById('vShipAddr1').value    = d.shipto_address1 || '';
+  document.getElementById('vShipAddr2').value    = d.shipto_address2 || '';
+  document.getElementById('vShipPincode').value  = d.shipto_pincode || '';
+  document.getElementById('vShipDistrict').value = d.shipto_district || '';
+  document.getElementById('vShipState').value = d.shipto_state || '';
+
+  // Bank
+  document.getElementById('vBankName').value = d.bank_name || '';
+  document.getElementById('vBankAcc').value  = d.bank_account || '';
+  document.getElementById('vBankIfsc').value = d.bank_ifsc || '';
+
+  document.getElementById('vendorModalErr').style.display = 'none';
+  document.getElementById('vendorModal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('vName').focus(), 60);
+}
+
+function closeVendorModal() {
+  document.getElementById('vendorModal').classList.add('hidden');
+}
+
+function editVendor(name) {
+  const v = allVendors.find(x => x.name === name);
+  if (!v) return;
+  openVendorModal(v.name, v.data || {});
+}
+
+function syncBillToShip() {
+  if (!document.getElementById('vShipSame').checked) return;
+  document.getElementById('vShipAddr1').value    = document.getElementById('vAddr1').value;
+  document.getElementById('vShipAddr2').value    = document.getElementById('vAddr2').value;
+  document.getElementById('vShipPincode').value  = document.getElementById('vPincode').value;
+  document.getElementById('vShipDistrict').value = document.getElementById('vDistrict').value;
+  document.getElementById('vShipState').value    = document.getElementById('vState').value;
+}
+
+function toggleVShipSame() {
+  const same = document.getElementById('vShipSame').checked;
+  const block = document.getElementById('vShipBlock');
+  if (same) {
+    block.style.opacity = '0.5';
+    block.style.pointerEvents = 'none';
+    syncBillToShip();
+  } else {
+    block.style.opacity = '';
+    block.style.pointerEvents = '';
+  }
+}
+
+async function fetchVendorPincode(prefix) {
+  const isBill = prefix === 'bill';
+  const pinEl = document.getElementById(isBill ? 'vPincode' : 'vShipPincode');
+  const pin = pinEl.value.replace(/\D/g, '');
+  if (pin.length !== 6) return;
+  try {
+    const res  = await fetch('https://api.postalpincode.in/pincode/' + pin);
+    const data = await res.json();
+    if (Array.isArray(data) && data[0].Status === 'Success' && data[0].PostOffice?.length) {
+      const po = data[0].PostOffice[0];
+      const matchedState = VENDOR_STATES.find(s => s.toLowerCase() === (po.State || '').toLowerCase()) || po.State || '';
+      if (isBill) {
+        document.getElementById('vDistrict').value = po.District;
+        document.getElementById('vState').value = matchedState;
+      } else {
+        document.getElementById('vShipDistrict').value = po.District;
+        document.getElementById('vShipState').value = matchedState;
+      }
+    }
+  } catch (e) { console.warn('[vendor pincode]', e.message); }
+}
+
+async function saveVendor() {
+  const errEl = document.getElementById('vendorModalErr');
+  errEl.style.display = 'none';
+  const name = document.getElementById('vName').value.trim();
+  if (!name) { errEl.textContent = 'Name is required.'; errEl.style.display = ''; return; }
+
+  const payload = {
+    name,
+    original_name:   document.getElementById('vOriginalName').value || name,
+    type:            document.getElementById('vType').value,
+    gstin:           document.getElementById('vGstin').value.trim(),
+    mobile:          document.getElementById('vMobile').value.trim(),
+    email:           document.getElementById('vEmail').value.trim(),
+    address1:        document.getElementById('vAddr1').value.trim(),
+    address2:        document.getElementById('vAddr2').value.trim(),
+    pincode:         document.getElementById('vPincode').value.trim(),
+    district:        document.getElementById('vDistrict').value.trim(),
+    state:           document.getElementById('vState').value,
+    shipto_address1: document.getElementById('vShipAddr1').value.trim(),
+    shipto_address2: document.getElementById('vShipAddr2').value.trim(),
+    shipto_pincode:  document.getElementById('vShipPincode').value.trim(),
+    shipto_district: document.getElementById('vShipDistrict').value.trim(),
+    shipto_state:    document.getElementById('vShipState').value,
+    bank_name:       document.getElementById('vBankName').value.trim(),
+    bank_account:    document.getElementById('vBankAcc').value.trim(),
+    bank_ifsc:       document.getElementById('vBankIfsc').value.trim(),
+  };
+
+  sdLoading('Saving Vendor…', '');
+  try {
+    const r = await fetch('/v2/vendors', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const j = await r.json();
+    sdDismiss();
+    if (!r.ok) { errEl.textContent = j.error || 'Save failed'; errEl.style.display = ''; return; }
+    closeVendorModal();
+    loadVendors();
+  } catch (e) { sdDismiss(); errEl.textContent = e.message; errEl.style.display = ''; }
+}
+
+function promptDelete(name) {
+  deleteTarget = name;
+  document.getElementById('deleteVendorName').textContent = name;
+  document.getElementById('deleteModal').classList.remove('hidden');
+}
+
+function closeDeleteModal() {
+  deleteTarget = null;
+  document.getElementById('deleteModal').classList.add('hidden');
+}
+
+async function confirmDelete() {
+  if (!deleteTarget) return;
+  sdLoading('Deleting…', '');
+  try {
+    const r = await fetch('/v2/vendors/' + encodeURIComponent(deleteTarget), { method: 'DELETE' });
+    const j = await r.json();
+    sdDismiss();
+    if (!r.ok) { sdError(j.error || 'Delete failed', 'Delete Failed'); return; }
+    closeDeleteModal();
+    loadVendors();
+  } catch (e) { sdDismiss(); sdError(e.message, 'Error'); }
+}
+
+function populateVendorStates() {
+  const optHtml = '<option value="">Select State</option>' +
+    VENDOR_STATES.map(s => '<option value="' + escH(s) + '">' + escH(s) + '</option>').join('');
+  document.getElementById('vState').innerHTML = optHtml;
+  document.getElementById('vShipState').innerHTML = optHtml;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  populateVendorStates();
+  loadVendors();
+});
+</script>
+
+{% include "_shell_end.html" %}
+</body>
+</html>

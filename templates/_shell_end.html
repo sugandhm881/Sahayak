@@ -1,0 +1,151 @@
+    </div>
+  </div>
+</div>
+
+<!-- ══ Sahayak Pro Dialog — global loading / alert / confirm UI ══ -->
+<div id="sDialog-backdrop">
+  <div id="sDialog-box">
+    <div class="sDialog-body">
+      <div id="sDialog-icon" class="sDialog-icon loading" style="position:relative;width:96px;height:96px;border-radius:50%;background:#f5f3ff;display:flex;align-items:center;justify-content:center;overflow:hidden;margin:0 auto 20px;">
+        <div class="sd-ring"></div>
+        <div style="width:56px;height:56px;min-width:56px;min-height:56px;background:url('/static/sayahak_logo_2.5.png') center/contain no-repeat;position:relative;z-index:1;flex-shrink:0;"></div>
+      </div>
+      <div id="sDialog-title" class="sDialog-title"></div>
+      <div id="sDialog-msg"   class="sDialog-msg"></div>
+      <div id="sDialog-meta"  class="sDialog-meta" style="display:none;"></div>
+      <div id="sDialog-step"  class="sDialog-step"></div>
+    </div>
+    <div id="sDialog-footer" class="sDialog-footer"></div>
+  </div>
+</div>
+
+<script>
+/* ── Sahayak Pro Dialog Engine (shared across all pages) ────────────────── */
+const _sd = (function() {
+  let _resolve = null;
+  const SVG = {
+    check: `<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>`,
+    x:     `<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 18L18 6M6 6l12 12"/></svg>`,
+    warn:  `<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4m0 4h.01"/></svg>`,
+    info:  `<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4m0-4h.01"/></svg>`,
+  };
+  function mk(footer, label, cls, val) {
+    const b = document.createElement('button');
+    b.className = 'btn ' + cls; b.textContent = label; b.style.flex = '1';
+    b.onclick = () => dismiss(val); footer.appendChild(b);
+  }
+  function dismiss(val) {
+    document.getElementById('sDialog-backdrop').classList.remove('active');
+    if (_resolve) { _resolve(val); _resolve = null; }
+  }
+  function open(type, title, msg, opts) {
+    opts = opts || {};
+    const iconEl  = document.getElementById('sDialog-icon');
+    const titleEl = document.getElementById('sDialog-title');
+    const msgEl   = document.getElementById('sDialog-msg');
+    const metaEl  = document.getElementById('sDialog-meta');
+    const stepEl  = document.getElementById('sDialog-step');
+    const footer  = document.getElementById('sDialog-footer');
+    metaEl.style.display = 'none'; stepEl.textContent = ''; footer.innerHTML = '';
+    titleEl.textContent = title; msgEl.innerHTML = msg || '';
+    iconEl.style.cssText = ''; // reset any inline override from previous loading state
+    if (type === 'loading') {
+      iconEl.className = 'sDialog-icon loading';
+      iconEl.style.cssText = 'position:relative;width:96px;height:96px;border-radius:50%;background:#f5f3ff;display:flex;align-items:center;justify-content:center;overflow:hidden;margin:0 auto 20px;';
+      iconEl.innerHTML = '<div class="sd-ring"></div><div style="width:56px;height:56px;min-width:56px;min-height:56px;background:url(\'/static/sayahak_logo_2.5.png\') center/contain no-repeat;position:relative;z-index:1;flex-shrink:0;"></div>';
+      stepEl.textContent = opts.step || '';
+    } else if (type === 'success') {
+      iconEl.className = 'sDialog-icon success'; iconEl.innerHTML = SVG.check;
+      if (opts.meta) { metaEl.textContent = opts.meta; metaEl.style.display = 'inline-block'; }
+      const b = document.createElement('button');
+      b.className = 'btn btn-primary'; b.textContent = opts.doneLabel || 'Done'; b.style.flex = '1';
+      b.onclick = () => { dismiss(true); if (opts.onDone) opts.onDone(); };
+      footer.appendChild(b);
+    } else if (type === 'error') {
+      iconEl.className = 'sDialog-icon error'; iconEl.innerHTML = SVG.x;
+      mk(footer, opts.closeLabel || 'Close', 'btn-ghost', false);
+    } else if (type === 'warn') {
+      iconEl.className = 'sDialog-icon warn'; iconEl.innerHTML = SVG.warn;
+      mk(footer, opts.cancelLabel || 'Cancel', 'btn-ghost', false);
+      mk(footer, opts.okLabel || 'Confirm', 'btn-primary', true);
+    } else {
+      iconEl.className = 'sDialog-icon info'; iconEl.innerHTML = SVG.info;
+      mk(footer, 'OK', 'btn-primary', true);
+    }
+    document.getElementById('sDialog-backdrop').classList.add('active');
+    return new Promise(function(res) { _resolve = res; });
+  }
+  return {
+    open: open, dismiss: dismiss,
+    step: function(t) { var el = document.getElementById('sDialog-step'); if (el) el.textContent = t || ''; },
+  };
+})();
+
+function sdAlert(msg, title)          { return _sd.open('alert',   title || 'Sahayak', msg); }
+function sdError(msg, title)          { return _sd.open('error',   title || 'Error', msg); }
+function sdSuccess(title, msg, meta, onDone) { return _sd.open('success', title, msg, { meta: meta, onDone: onDone }); }
+function sdConfirm(msg, title, opts)  { return _sd.open('warn',    title || 'Confirm', msg, opts || {}); }
+function sdLoading(title, step)       { _sd.open('loading', title || 'Please wait…', '', { step: step || '' }); }
+function sdStep(text)                 { _sd.step(text); }
+function sdDismiss()                  { _sd.dismiss(null); }
+
+/* Navigate to a URL with loading spinner (use for downloads & href redirects) */
+function saNavTo(url, title, step) {
+  sdLoading(title || 'Please wait…', step || '');
+  setTimeout(function() { window.location.href = url; }, 80);
+  setTimeout(function() { sdDismiss(); }, 5000); // auto-dismiss after 5s (file download stays on page)
+}
+
+/* Global overrides — replaces native browser popups across entire project */
+window.alert = function(msg) { sdAlert(String(msg == null ? '' : msg)); };
+
+/* Page-navigation loading spinner — fires on any internal <a> click */
+document.addEventListener('click', function(e) {
+  var a = e.target.closest('a[href]');
+  if (!a) return;
+  var href = a.getAttribute('href') || '';
+  if (!href || href.charAt(0) === '#' || href.indexOf('javascript:') === 0 || href.indexOf('mailto:') === 0 || a.target === '_blank' || e.ctrlKey || e.metaKey || e.shiftKey || a.hasAttribute('data-no-load')) return;
+  sdLoading('Loading…', '');
+});
+
+// View-as switcher (master only)
+document.addEventListener('DOMContentLoaded', () => {
+  const sel = document.getElementById('view_as_select');
+  if (sel) {
+    sel.addEventListener('change', () => {
+      const u = sel.value;
+      if (u) saNavTo('/set-view-mode/' + encodeURIComponent(u), 'Switching View…', '');
+    });
+  }
+});
+
+// Auto-enhance any <select> with Tom Select for a consistent dropdown UI.
+// Pages that want to opt out a specific select can add `data-no-enhance` or class `no-enhance`.
+// Pages that initialise their own Tom Select on a select will skip auto-enhance (already wrapped).
+document.addEventListener('DOMContentLoaded', () => {
+  if (typeof TomSelect === 'undefined') return;
+  // Defer so page-specific init (which runs on DOMContentLoaded too) can claim its selects first.
+  setTimeout(() => {
+    document.querySelectorAll('select').forEach((s) => {
+      if (s.tomselect) return;
+      if (s.hasAttribute('data-no-enhance')) return;
+      if (s.classList.contains('no-enhance')) return;
+      if (s.multiple) return; // skip multi-selects (different UX)
+      // Skip selects inside hidden modals — they are lazily initialised by page-specific code
+      if (s.closest('.modal-backdrop.hidden, .modal-overlay.hidden, [hidden]')) return;
+      try {
+        const ts = new TomSelect(s, {
+          controlInput: s.dataset.search === 'true' ? undefined : null,
+          create: false,
+          dropdownParent: 'body',
+          render: {
+            option: (d, esc) => `<div style="white-space:nowrap">${esc(d.text)}</div>`,
+          },
+        });
+        // Propagate min-width from original <select> to the TS wrapper so the control box isn't too narrow
+        if (s.style.minWidth) ts.wrapper.style.minWidth = s.style.minWidth;
+      } catch (e) { /* already enhanced or unsupported */ }
+    });
+  }, 50);
+});
+</script>

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Activate License — Sahayak ERP</title>
+  {% include "_shell_head.html" %}
+</head>
+<body>
+  <div class="auth-wrap">
+    <div class="auth-card auth-card-lg">
+      <div class="auth-accent"></div>
+      <div class="auth-body" style="text-align:center;">
+
+        <div style="margin-bottom:16px;">
+          <span class="pill pill-red">Account Inactive</span>
+        </div>
+
+        <h1 class="auth-title">Activate License</h1>
+        <p class="auth-sub">Scan the QR code using any UPI app (GooglePay, PhonePe, Paytm) to pay, then enter your UTR below to request activation.</p>
+
+        <div class="qr-frame">
+          <span class="qr-corner tl"></span>
+          <span class="qr-corner tr"></span>
+          <span class="qr-corner bl"></span>
+          <span class="qr-corner br"></span>
+          <img src="data:image/png;base64,{{ qr_code }}" alt="UPI QR Code">
+        </div>
+        <div class="text-xs text-muted" style="margin-bottom:22px;">
+          <span style="display:inline-block; width:6px; height:6px; background:var(--green); border-radius:50%; margin-right:6px;"></span>
+          Paying: Sahayak ERP
+        </div>
+
+        <form method="POST" class="auth-form" style="text-align:left;">
+          <div>
+            <label class="field-label">Amount Paid (₹)</label>
+            <input type="number" name="amount" placeholder="e.g. 500" required min="1" step="1">
+          </div>
+          <div>
+            <label class="field-label">Transaction Reference (UTR)</label>
+            <input type="text" name="utr" placeholder="e.g. 33458XXXXXXX" required>
+          </div>
+          <button type="submit" class="btn btn-success btn-lg" style="width:100%; margin-top:6px;" data-loading-title="Submitting Request…">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            I Have Paid — Request Activation
+          </button>
+        </form>
+
+        <div class="auth-footer">
+          <a href="/logout" class="flex items-center justify-between" style="justify-content:center; gap:6px;">
+            <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M11 15l-3-3m0 0l3-3m-3 3h8M3 12a9 9 0 1118 0 9 9 0 01-18 0z"/>
+            </svg>
+            Cancel &amp; Logout
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+{% include "_auth_loader.html" %}
+</body>
+</html>

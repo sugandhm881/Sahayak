@@ -1,0 +1,1490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+{% include "_shell_head.html" %}
+<title>Accounts — {{ profile.get('company_name', 'Sahayak ERP') }}</title>
+<style>
+  /* ── Global page loader ── */
+  #pageLoader { position:fixed; top:0; left:0; height:3px; width:0; background:var(--accent-sale); z-index:10000; border-radius:0 2px 2px 0; opacity:0; transition:width .3s ease, opacity .25s ease; pointer-events:none; }
+  #pageLoader.is-loading { opacity:1; width:75%; transition:width 8s cubic-bezier(.1,0,.2,1), opacity .1s; }
+  #pageLoader.is-done { opacity:0; width:100%; transition:width .15s ease, opacity .3s ease .15s; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  /* Button loading spinner */
+  .btn-spin { position:relative; color:transparent !important; pointer-events:none; }
+  .btn-spin > * { opacity:0; }
+  .btn-spin::after { content:''; position:absolute; inset:0; margin:auto; width:14px; height:14px; border:2px solid rgba(255,255,255,.6); border-top-color:#fff; border-radius:50%; animation:spin .6s linear infinite; }
+  .btn-spin.btn-ghost::after, .btn-spin.btn-dark::after { border-color:rgba(0,0,0,.2); border-top-color:var(--ink-2); }
+
+  /* ── Bank account card picker ── */
+  .bank-acc-card { border:2px solid var(--border); border-radius:var(--radius-sm); padding:12px 14px; cursor:pointer; transition:border-color .15s, background .15s; display:flex; align-items:center; gap:12px; }
+  .bank-acc-card:hover { border-color:var(--border-2); background:var(--surface-2); }
+  .bank-acc-card.selected { border-color:var(--accent-sale); background:var(--accent-sale-light); }
+  .bank-acc-card-icon { width:36px; height:36px; border-radius:8px; background:var(--surface-3); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .bank-acc-card-body { flex:1; min-width:0; }
+  .bank-acc-card-label { font-weight:700; font-size:13px; color:var(--ink); }
+  .bank-acc-card-meta  { font-size:11px; color:var(--ink-3); margin-top:1px; }
+
+  /* ── Bank table sort ── */
+  .th-sortable { cursor:pointer; user-select:none; white-space:nowrap; }
+  .th-sortable:hover { color:var(--ink); }
+  .sort-icon { display:inline-block; margin-left:4px; font-size:10px; opacity:.45; vertical-align:middle; transition:opacity .15s; }
+  .th-sortable:hover .sort-icon { opacity:.75; }
+  .th-sortable.sort-asc  .sort-icon { opacity:1; }
+  .th-sortable.sort-desc .sort-icon { opacity:1; }
+
+  /* ── Bank mini-dashboard stats ── */
+  .bank-stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin-bottom:14px; }
+  .bstat { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); padding:12px 14px; }
+  .bstat-label { font-size:10px; font-weight:700; color:var(--ink-3); text-transform:uppercase; letter-spacing:.06em; margin-bottom:5px; white-space:nowrap; }
+  .bstat-value { font-size:18px; font-weight:700; color:var(--ink); font-variant-numeric:tabular-nums; line-height:1.1; }
+  .bstat-sub   { font-size:10px; color:var(--ink-3); margin-top:2px; }
+
+  .party-drawer-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; align-items: stretch; justify-content: flex-end; z-index: 999; }
+  .party-drawer-backdrop.open { display: flex; }
+  .party-drawer { background: var(--surface); width: min(720px, 100%); height: 100vh; overflow-y: auto; box-shadow: var(--shadow-lg); }
+  .party-drawer-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: var(--surface); z-index: 1; }
+  .party-drawer-title { font-size: 16px; font-weight: 800; color: var(--ink); }
+
+  @media print {
+    body.printing-report .shell > .sidebar,
+    body.printing-report .shell > .main > .topbar,
+    body.printing-report .tab-bar,
+    body.printing-report .card-header button,
+    body.printing-report .card-header input,
+    body.printing-report .card-header select { display: none !important; }
+    body.printing-report .card { border: none !important; box-shadow: none !important; }
+    body.printing-report .tab-panel:not(.is-print-target) { display: none !important; }
+    body.printing-report .tab-panel.is-print-target { display: block !important; }
+    body.printing-report .shell, body.printing-report .main, body.printing-report .page { display: block !important; padding: 0 !important; margin: 0 !important; }
+  }
+</style>
+</head>
+<body>
+<div id="pageLoader"></div>
+{% set active_nav = 'accounts' %}
+{% set page_title = 'Accounts & Reports' %}
+{% set page_sub = 'Trial balance · P&L · Balance sheet · GSTR · Bank reconciliation' %}
+{% include "_shell_start.html" %}
+
+<div class="card mb-lg">
+  <div class="card-header">
+    <div class="flex items-center gap-md" style="flex-wrap:wrap;">
+      <div class="field-label" style="margin:0">Period</div>
+      <select id="periodPreset" style="min-width:170px;">
+        <option value="today">Today</option>
+        <option value="last7">Last 7 Days</option>
+        <option value="thisMonth">This Month</option>
+        <option value="lastMonth">Last Month</option>
+        <option value="thisFY" selected>This FY</option>
+        <option value="lastFY">Last FY</option>
+        <option value="custom">Custom Date Range</option>
+      </select>
+      <div id="customRangeWrap" style="display:none; align-items:center; gap:8px;">
+        <input type="date" id="fromDate" style="width:auto; min-width:140px;">
+        <span class="text-xs text-muted">to</span>
+        <input type="date" id="toDate" style="width:auto; min-width:140px;">
+      </div>
+      <button id="btnApply" class="btn btn-primary btn-sm">Apply</button>
+    </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <button class="btn btn-ghost btn-sm" onclick="exportActiveReport('csv')" title="Download as CSV (opens in Excel)">
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        Excel / CSV
+      </button>
+      <button class="btn btn-ghost btn-sm" onclick="exportActiveReport('pdf')" title="Print or save as PDF">
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+        PDF
+      </button>
+      <button id="btnBackfill" class="btn btn-dark btn-sm">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        Rebuild Journal
+      </button>
+    </div>
+  </div>
+
+  <div class="tab-bar">
+    <button class="tab active" data-tab="tb">Trial Balance</button>
+    <button class="tab" data-tab="pl">Profit &amp; Loss</button>
+    <button class="tab" data-tab="bs">Balance Sheet</button>
+    <button class="tab" data-tab="rec">Receivables</button>
+    <button class="tab" data-tab="pay">Payables</button>
+    <button class="tab" data-tab="gst">GSTR-3B</button>
+    <button class="tab" data-tab="lock">Period Lock</button>
+    <button class="tab" data-tab="bank">Bank Recon</button>
+    <button class="tab" data-tab="aud">Audit Log</button>
+  </div>
+
+  <div class="card-body">
+
+    <!-- Trial Balance -->
+    <div id="tab-tb" class="tab-panel">
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Account</th><th class="num">Debit</th><th class="num">Credit</th><th class="num">Balance</th></tr></thead>
+          <tbody id="tbBody"></tbody>
+          <tfoot style="font-weight:800; background:var(--surface-2);">
+            <tr><td>TOTAL</td><td class="num" id="tbTotDr">0.00</td><td class="num" id="tbTotCr">0.00</td><td class="num" id="tbTotBal">0.00</td></tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+    <!-- Profit & Loss -->
+    <div id="tab-pl" class="tab-panel hidden">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div class="card">
+          <div class="card-header"><div class="card-title"><span class="pill pill-green">Income</span></div><span class="num font-extrabold" id="plTotIncome">0.00</span></div>
+          <div class="card-body" style="padding:0;"><table class="table" id="plIncome"></table></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title"><span class="pill pill-red">Expense</span></div><span class="num font-extrabold" id="plTotExpense">0.00</span></div>
+          <div class="card-body" style="padding:0;"><table class="table" id="plExpense"></table></div>
+        </div>
+      </div>
+      <div class="mt-lg" style="padding:16px 20px; background:var(--accent-sale-light); border:1px solid #fed7aa; border-radius:var(--radius); display:flex; justify-content:space-between; align-items:center;">
+        <span class="font-extrabold" style="font-size:16px;">Net Profit</span>
+        <span class="num font-extrabold" id="plNetProfit" style="font-size:20px; color:var(--accent-sale-dark);">0.00</span>
+      </div>
+    </div>
+
+    <!-- Balance Sheet -->
+    <div id="tab-bs" class="tab-panel hidden">
+      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:16px;">
+        <div class="card"><div class="card-header"><div class="card-title">Assets</div></div><div class="card-body" style="padding:0;"><table class="table" id="bsAssets"></table></div></div>
+        <div class="card"><div class="card-header"><div class="card-title">Liabilities</div></div><div class="card-body" style="padding:0;"><table class="table" id="bsLiabilities"></table></div></div>
+        <div class="card"><div class="card-header"><div class="card-title">Equity</div></div><div class="card-body" style="padding:0;"><table class="table" id="bsEquity"></table></div></div>
+      </div>
+    </div>
+
+    <!-- Receivables -->
+    <div id="tab-rec" class="tab-panel hidden">
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Party</th><th class="num">Balance (Dr)</th></tr></thead>
+          <tbody id="recBody"></tbody>
+          <tfoot style="font-weight:800; background:var(--surface-2);"><tr><td>TOTAL</td><td class="num" id="recTot">0.00</td></tr></tfoot>
+        </table>
+      </div>
+    </div>
+
+    <!-- Payables -->
+    <div id="tab-pay" class="tab-panel hidden">
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Party</th><th class="num">Balance (Cr)</th></tr></thead>
+          <tbody id="payBody"></tbody>
+          <tfoot style="font-weight:800; background:var(--surface-2);"><tr><td>TOTAL</td><td class="num" id="payTot">0.00</td></tr></tfoot>
+        </table>
+      </div>
+    </div>
+
+
+    <!-- GSTR-3B -->
+    <div id="tab-gst" class="tab-panel hidden">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div class="card">
+          <div class="card-header"><div class="card-title"><span class="pill pill-green">Output Tax</span></div></div>
+          <div class="card-body" style="padding:0;">
+            <table class="table">
+              <tr><td>CGST Output</td><td class="num" id="gCo">0.00</td></tr>
+              <tr><td>SGST Output</td><td class="num" id="gSo">0.00</td></tr>
+              <tr><td>IGST Output</td><td class="num" id="gIo">0.00</td></tr>
+              <tr style="font-weight:800; background:var(--surface-2);"><td>Total Output</td><td class="num" id="gTo">0.00</td></tr>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title"><span class="pill pill-purchase">Input Tax Credit</span></div></div>
+          <div class="card-body" style="padding:0;">
+            <table class="table">
+              <tr><td>CGST Input</td><td class="num" id="gCi">0.00</td></tr>
+              <tr><td>SGST Input</td><td class="num" id="gSi">0.00</td></tr>
+              <tr><td>IGST Input</td><td class="num" id="gIi">0.00</td></tr>
+              <tr style="font-weight:800; background:var(--surface-2);"><td>Total Input</td><td class="num" id="gTi">0.00</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="mt-lg" style="padding:16px 20px; background:var(--accent-sale-light); border:1px solid #fed7aa; border-radius:var(--radius); display:flex; justify-content:space-between; align-items:center;">
+        <span class="font-extrabold" style="font-size:16px;">Net GST Payable</span>
+        <span class="num font-extrabold" id="gNet" style="font-size:20px; color:var(--accent-sale-dark);">0.00</span>
+      </div>
+    </div>
+
+    <!-- Period Lock -->
+    <div id="tab-lock" class="tab-panel hidden">
+      <div class="card mb-md" style="padding:18px;">
+        <div style="display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap;">
+          <div style="flex-shrink:0; width:36px; height:36px; border-radius:8px; background:#fee2e2; display:flex; align-items:center; justify-content:center;">
+            <svg width="18" height="18" fill="none" stroke="#dc2626" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+          </div>
+          <div style="flex:1; min-width:240px;">
+            <div style="font-weight:700; color:var(--ink); margin-bottom:4px;">Lock a Financial Year</div>
+            <div class="text-xs text-muted">Once locked, no new invoices, payments, or expenses can be created or edited for that FY. Useful after filing returns. Master only.</div>
+          </div>
+        </div>
+        <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-top:14px;">
+          <div><label class="field-label">Financial Year</label><input type="text" id="lockFY" placeholder="e.g. 2025-26" style="width:170px; font-family:'JetBrains Mono',monospace;"></div>
+          <button id="btnLock" class="btn btn-danger">Lock This FY</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>FY</th><th>Locked On</th><th>Locked By</th><th></th></tr></thead>
+          <tbody id="lockBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Bank Recon -->
+    <div id="tab-bank" class="tab-panel hidden">
+      <div class="card mb-md" style="padding:16px;">
+        <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-bottom:12px;">
+          <div style="flex:1; min-width:260px;">
+            <label class="field-label">Import Bank Statement</label>
+            <div class="text-xs text-muted" style="margin-bottom:4px;">Supports CSV, Excel (.xlsx), PDF, and text files</div>
+            <input type="file" id="bankFile" accept=".csv,.xlsx,.xls,.pdf,.txt,.tsv,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel">
+          </div>
+          <button id="btnImport" class="btn btn-primary">
+            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+            Import
+          </button>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <label class="field-label" style="margin:0;">Show</label>
+          <select id="bankFilter" data-no-enhance style="width:160px;">
+            <option value="unmatched">Unreconciled</option>
+            <option value="matched">Reconciled</option>
+            <option value="">All transactions</option>
+          </select>
+          <input type="text" id="bankSearch" placeholder="Search description / ref…" style="flex:1; min-width:180px;">
+          <button id="btnBankReload" class="btn btn-ghost btn-sm">Refresh</button>
+          <span style="flex:1;"></span>
+          <button id="btnBulkDelete" class="btn btn-danger btn-sm" style="display:none;">
+            <span id="bulkDeleteCount">0</span> selected — Delete
+          </button>
+        </div>
+      </div>
+      <!-- Mini dashboard -->
+      <div class="bank-stats-grid" id="bankStatsDash">
+        <div class="bstat">
+          <div class="bstat-label">Transactions</div>
+          <div class="bstat-value" id="bsCount">—</div>
+          <div class="bstat-sub" id="bsPeriodLabel"></div>
+        </div>
+        <div class="bstat">
+          <div class="bstat-label">Total Debit (Out)</div>
+          <div class="bstat-value" id="bsDebit" style="color:var(--red);">—</div>
+          <div class="bstat-sub" id="bsDebitSub"></div>
+        </div>
+        <div class="bstat">
+          <div class="bstat-label">Total Credit (In)</div>
+          <div class="bstat-value" id="bsCredit" style="color:var(--green);">—</div>
+          <div class="bstat-sub" id="bsCreditSub"></div>
+        </div>
+        <div class="bstat">
+          <div class="bstat-label">Reconciled</div>
+          <div class="bstat-value" id="bsRecon" style="color:var(--green);">—</div>
+          <div class="bstat-sub" id="bsReconSub"></div>
+        </div>
+        <div class="bstat">
+          <div class="bstat-label">Unreconciled</div>
+          <div class="bstat-value" id="bsUnrecon" style="color:var(--amber,#d97706);">—</div>
+          <div class="bstat-sub" id="bsUnreconSub"></div>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th style="width:36px;"><input type="checkbox" id="bankCheckAll"></th>
+              <th id="bankDateTh" class="th-sortable sort-desc" title="Sort by date">Date <span class="sort-icon">▼</span></th>
+              <th>Description</th>
+              <th>Ref</th>
+              <th class="num">Debit (Out)</th>
+              <th class="num">Credit (In)</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="bankBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Audit Log -->
+    <div id="tab-aud" class="tab-panel hidden">
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Type</th><th>Ref</th><th>Details</th></tr></thead>
+          <tbody id="audBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Bank classify modal: match payment OR record expense / vendor pmt / journal / other -->
+<div id="bankMatchModal" class="modal-backdrop" style="display:none;" onclick="if(event.target===this) closeBankMatch()">
+  <div class="modal modal-lg" style="max-width:680px;">
+    <div class="modal-header">
+      <div>
+        <div class="card-title">Reconcile Bank Transaction</div>
+        <div id="bankMatchTxnInfo" class="text-xs text-muted" style="margin-top:2px;"></div>
+      </div>
+      <button class="modal-close" onclick="closeBankMatch()">×</button>
+    </div>
+    <div class="modal-body" style="padding:0;">
+      <!-- classify tabs -->
+      <div class="tab-bar" style="margin:0; border-bottom:1px solid var(--border); padding:0 16px;">
+        <button class="tab active" data-ctab="match">Match Payment</button>
+        <button class="tab" data-ctab="expense">Record Expense</button>
+        <button class="tab" data-ctab="vendor">Vendor Payment</button>
+        <button class="tab" data-ctab="journal">Journal Entry</button>
+        <button class="tab" data-ctab="other">Other / Transfer</button>
+      </div>
+
+      <!-- Tab: Match existing payment/receipt -->
+      <div id="ctab-match" class="ctab-panel" style="padding:16px;">
+        <div id="bankMatchList" style="max-height:52vh; overflow:auto;"></div>
+      </div>
+
+      <!-- Tab: Record Expense -->
+      <div id="ctab-expense" class="ctab-panel" style="display:none; padding:16px;">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div>
+            <label class="field-label">Date</label>
+            <input type="date" id="bExpDate">
+          </div>
+          <div>
+            <label class="field-label">Amount (₹)</label>
+            <input type="number" step="0.01" id="bExpAmt">
+          </div>
+          <div style="grid-column:1/-1;">
+            <label class="field-label">Expense Ledger</label>
+            <select id="bExpAccount" data-no-enhance style="width:100%;">
+              <optgroup label="Indirect Expenses">
+                <option value="EXP_SALARY">Salary &amp; Wages</option>
+                <option value="EXP_RENT">Rent</option>
+                <option value="EXP_UTILITIES">Utilities (Electricity / Water / Internet)</option>
+                <option value="EXP_TRAVEL">Travel &amp; Conveyance</option>
+                <option value="EXP_BANK_CHARGES">Bank Charges / Fees</option>
+                <option value="EXP_PROF_FEES">Professional Fees</option>
+                <option value="DISCOUNT_GIVEN">Discount Given</option>
+                <option value="ROUND_OFF">Rounding Off</option>
+                <option value="EXP_GENERAL" selected>General / Miscellaneous Expense</option>
+              </optgroup>
+              <optgroup label="Direct Expenses">
+                <option value="PURCHASES">Purchases / Cost of Goods Sold</option>
+              </optgroup>
+              <optgroup label="Asset Transfer">
+                <option value="CASH">Cash (Bank → Petty Cash transfer)</option>
+              </optgroup>
+            </select>
+          </div>
+          <div style="grid-column:1/-1;">
+            <label class="field-label">Paid To (Vendor / Payee)</label>
+            <input type="text" id="bExpVendor" placeholder="e.g. HDFC Bank, Ravi Electricals">
+          </div>
+          <div style="grid-column:1/-1;">
+            <label class="field-label">Narration</label>
+            <input type="text" id="bExpNote" placeholder="Optional note or bill reference">
+          </div>
+        </div>
+        <div style="margin-top:14px; display:flex; justify-content:flex-end;">
+          <button id="btnSaveExpense" class="btn btn-primary">Save Expense</button>
+        </div>
+      </div>
+
+      <!-- Tab: Vendor Payment -->
+      <div id="ctab-vendor" class="ctab-panel" style="display:none; padding:16px;">
+        <p class="text-xs text-muted" style="margin-bottom:12px;">Creates a Payment record that reduces the vendor's payable balance. Use when you paid a supplier against a purchase bill.</p>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div>
+            <label class="field-label">Date</label>
+            <input type="date" id="bVenDate">
+          </div>
+          <div>
+            <label class="field-label">Amount (₹)</label>
+            <input type="number" step="0.01" id="bVenAmt">
+          </div>
+          <div style="grid-column:1/-1;">
+            <label class="field-label">Vendor / Party Name</label>
+            <select id="bVenParty" data-no-enhance style="width:100%;" placeholder="Search or type party name…"></select>
+          </div>
+          <div style="grid-column:1/-1;">
+            <label class="field-label">Against Invoice / Bill No. (optional)</label>
+            <input type="text" id="bVenInv" placeholder="e.g. BILL-2025-001">
+          </div>
+          <div style="grid-column:1/-1;">
+            <label class="field-label">Narration</label>
+            <input type="text" id="bVenNote" placeholder="Optional note">
+          </div>
+        </div>
+        <div style="margin-top:14px; display:flex; justify-content:flex-end;">
+          <button id="btnSaveVendor" class="btn btn-primary">Save Vendor Payment</button>
+        </div>
+      </div>
+
+      <!-- Tab: Journal Entry -->
+      <div id="ctab-journal" class="ctab-panel" style="display:none; padding:16px;">
+        <p class="text-xs text-muted" style="margin-bottom:12px;">Select the DR and CR ledgers — exactly like a Journal Voucher in Tally. Amount is pre-filled from the bank transaction.</p>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div>
+            <label class="field-label">Date</label>
+            <input type="date" id="bJnlDate">
+          </div>
+          <div>
+            <label class="field-label">Amount (₹)</label>
+            <input type="number" step="0.01" id="bJnlAmt">
+          </div>
+          <div>
+            <label class="field-label">Debit (Dr) Ledger</label>
+            <select id="bJnlDr" data-no-enhance style="width:100%;">
+              <optgroup label="Assets">
+                <option value="BANK">Bank</option>
+                <option value="CASH">Cash</option>
+                <option value="TDS_RECEIVABLE">TDS Receivable</option>
+                <option value="CGST_INPUT">CGST Input (Receivable)</option>
+                <option value="SGST_INPUT">SGST Input (Receivable)</option>
+                <option value="IGST_INPUT">IGST Input (Receivable)</option>
+              </optgroup>
+              <optgroup label="Liabilities">
+                <option value="CGST_OUTPUT">CGST Payable (Output)</option>
+                <option value="SGST_OUTPUT">SGST Payable (Output)</option>
+                <option value="IGST_OUTPUT">IGST Payable (Output)</option>
+              </optgroup>
+              <optgroup label="Income">
+                <option value="SALES">Sales</option>
+              </optgroup>
+              <optgroup label="Expenses">
+                <option value="PURCHASES">Purchases / Cost of Goods</option>
+                <option value="EXP_SALARY">Salary &amp; Wages</option>
+                <option value="EXP_RENT">Rent</option>
+                <option value="EXP_UTILITIES">Utilities</option>
+                <option value="EXP_TRAVEL">Travel &amp; Conveyance</option>
+                <option value="EXP_BANK_CHARGES">Bank Charges</option>
+                <option value="EXP_PROF_FEES">Professional Fees</option>
+                <option value="DISCOUNT_GIVEN">Discount Given</option>
+                <option value="ROUND_OFF">Rounding Off</option>
+                <option value="EXP_GENERAL">General / Miscellaneous Expense</option>
+              </optgroup>
+              <optgroup label="Equity">
+                <option value="OPENING_EQUITY">Opening Balance Equity</option>
+              </optgroup>
+              <optgroup label="Control">
+                <option value="SUBLEDGER">Party Subledger (Debtors / Creditors)</option>
+              </optgroup>
+            </select>
+          </div>
+          <div>
+            <label class="field-label">Credit (Cr) Ledger</label>
+            <select id="bJnlCr" data-no-enhance style="width:100%;">
+              <optgroup label="Assets">
+                <option value="BANK">Bank</option>
+                <option value="CASH">Cash</option>
+                <option value="TDS_RECEIVABLE">TDS Receivable</option>
+                <option value="CGST_INPUT">CGST Input (Receivable)</option>
+                <option value="SGST_INPUT">SGST Input (Receivable)</option>
+                <option value="IGST_INPUT">IGST Input (Receivable)</option>
+              </optgroup>
+              <optgroup label="Liabilities">
+                <option value="CGST_OUTPUT">CGST Payable (Output)</option>
+                <option value="SGST_OUTPUT">SGST Payable (Output)</option>
+                <option value="IGST_OUTPUT">IGST Payable (Output)</option>
+              </optgroup>
+              <optgroup label="Income">
+                <option value="SALES">Sales</option>
+              </optgroup>
+              <optgroup label="Expenses">
+                <option value="PURCHASES">Purchases / Cost of Goods</option>
+                <option value="EXP_SALARY">Salary &amp; Wages</option>
+                <option value="EXP_RENT">Rent</option>
+                <option value="EXP_UTILITIES">Utilities</option>
+                <option value="EXP_TRAVEL">Travel &amp; Conveyance</option>
+                <option value="EXP_BANK_CHARGES">Bank Charges</option>
+                <option value="EXP_PROF_FEES">Professional Fees</option>
+                <option value="DISCOUNT_GIVEN">Discount Given</option>
+                <option value="ROUND_OFF">Rounding Off</option>
+                <option value="EXP_GENERAL">General / Miscellaneous Expense</option>
+              </optgroup>
+              <optgroup label="Equity">
+                <option value="OPENING_EQUITY">Opening Balance Equity</option>
+              </optgroup>
+              <optgroup label="Control">
+                <option value="SUBLEDGER">Party Subledger (Debtors / Creditors)</option>
+              </optgroup>
+            </select>
+          </div>
+          <div style="grid-column:1/-1;">
+            <label class="field-label">Party Name (optional)</label>
+            <input type="text" id="bJnlParty" placeholder="e.g. vendor or customer name">
+          </div>
+          <div style="grid-column:1/-1;">
+            <label class="field-label">Narration</label>
+            <input type="text" id="bJnlNarr" placeholder="e.g. Advance payment, tax payment">
+          </div>
+        </div>
+        <div style="margin-top:14px; display:flex; justify-content:flex-end;">
+          <button id="btnSaveJournal" class="btn btn-primary">Post Journal Entry</button>
+        </div>
+      </div>
+
+      <!-- Tab: Other / Transfer -->
+      <div id="ctab-other" class="ctab-panel" style="display:none; padding:16px;">
+        <p class="text-xs text-muted" style="margin-bottom:12px;">Mark as reconciled without creating a books entry. Use for bank transfers, tax payments already captured elsewhere, or any transaction to skip.</p>
+        <div>
+          <label class="field-label">Note / Reason</label>
+          <input type="text" id="bOtherNote" placeholder="e.g. Internal fund transfer, FD opening, tax payment">
+        </div>
+        <div style="margin-top:14px; display:flex; justify-content:flex-end;">
+          <button id="btnSaveOther" class="btn btn-primary">Mark as Reconciled</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Party Ledger Drawer (slides in from right when a party name is clicked in Receivables/Payables) -->
+<div id="partyDrawer" class="party-drawer-backdrop" onclick="if(event.target===this) closePartyDrawer()">
+  <div class="party-drawer">
+    <div class="party-drawer-header">
+      <div>
+        <div class="text-xs text-muted">Party Ledger</div>
+        <div class="party-drawer-title" id="partyDrawerTitle">—</div>
+      </div>
+      <button class="modal-close" onclick="closePartyDrawer()">×</button>
+    </div>
+    <div id="partyDrawerBody"></div>
+  </div>
+</div>
+
+<!-- Bank account select modal — shown before importing a statement -->
+<div id="bankAccModal" class="modal-backdrop" style="display:none;" onclick="if(event.target===this) closeBankAccModal()">
+  <div class="modal" style="max-width:520px;">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">Select Bank Account</div>
+        <div class="text-xs text-muted" style="margin-top:2px;">Which account does this statement belong to?</div>
+      </div>
+      <button class="modal-close" onclick="closeBankAccModal()">×</button>
+    </div>
+    <div class="modal-body" style="max-height:70vh; overflow:auto;">
+      <div id="bankAccList" style="display:flex; flex-direction:column; gap:8px;"></div>
+
+      <!-- Add new account toggle -->
+      <button id="btnAddBankAcc" class="btn btn-ghost btn-sm" style="margin-top:12px; width:100%; justify-content:center;">
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+        Add new bank account
+      </button>
+
+      <div id="addBankAccForm" style="display:none; margin-top:12px; padding:14px; background:var(--surface-2); border-radius:var(--radius-sm); border:1px solid var(--border);">
+        <div style="font-weight:700; font-size:12px; color:var(--ink-2); margin-bottom:10px; text-transform:uppercase; letter-spacing:.04em;">New Account</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+          <div style="grid-column:1/-1;">
+            <label class="field-label">Account Label *</label>
+            <input type="text" id="naLabel" placeholder="e.g. HDFC Current, SBI Savings">
+          </div>
+          <div>
+            <label class="field-label">Bank Name</label>
+            <input type="text" id="naBank" placeholder="HDFC Bank">
+          </div>
+          <div>
+            <label class="field-label">Account Holder</label>
+            <input type="text" id="naHolder" placeholder="Company / Person name">
+          </div>
+          <div>
+            <label class="field-label">Account Number *</label>
+            <input type="text" id="naAccNo" placeholder="50100123456789">
+          </div>
+          <div>
+            <label class="field-label">IFSC Code</label>
+            <input type="text" id="naIfsc" placeholder="HDFC0001234">
+          </div>
+          <div style="grid-column:1/-1;">
+            <label class="field-label">Branch</label>
+            <input type="text" id="naBranch" placeholder="Gurgaon Main">
+          </div>
+        </div>
+        <div style="margin-top:10px; display:flex; gap:8px;">
+          <button id="btnSaveBankAcc" class="btn btn-primary btn-sm">Save &amp; Select</button>
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('addBankAccForm').style.display='none';">Cancel</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeBankAccModal()">Cancel</button>
+      <button id="btnConfirmImport" class="btn btn-primary" disabled>
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+        Import Statement
+      </button>
+    </div>
+  </div>
+</div>
+
+{% include "_shell_end.html" %}
+
+<script>
+const fmt = (n) => (Math.round((+n||0)*100)/100).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
+
+// ─── Global loader ────────────────────────────────────────────────────────────
+let _loaderDepth = 0;
+let _loaderTimer  = null;
+function showLoader() {
+  _loaderDepth++;
+  clearTimeout(_loaderTimer);
+  const el = document.getElementById('pageLoader');
+  el.classList.remove('is-done');
+  el.classList.add('is-loading');
+}
+function hideLoader() {
+  _loaderDepth = Math.max(0, _loaderDepth - 1);
+  if (_loaderDepth > 0) return;
+  const el = document.getElementById('pageLoader');
+  el.classList.remove('is-loading');
+  el.classList.add('is-done');
+  _loaderTimer = setTimeout(() => { el.classList.remove('is-done'); }, 600);
+}
+async function apiFetch(url, opts) {
+  showLoader();
+  try { return await fetch(url, opts); }
+  finally { hideLoader(); }
+}
+// Button loading helper — wraps a promise, shows spinner inside the button
+function btnSpinOn(btn) { btn.classList.add('btn-spin'); btn.disabled = true; }
+function btnSpinOff(btn) { btn.classList.remove('btn-spin'); btn.disabled = false; }
+
+function setTab(name) {
+  document.querySelectorAll('.tab-bar .tab').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('hidden', p.id !== 'tab-' + name));
+  load();
+}
+document.querySelectorAll('.tab-bar .tab').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
+
+// ── Generic report export: walks the active tab's tables → CSV / print PDF.
+function activeReportInfo() {
+  const tabBtn = document.querySelector('.tab-bar .tab.active');
+  const tabName = tabBtn ? tabBtn.textContent.trim() : 'Report';
+  const tabKey = tabBtn ? tabBtn.dataset.tab : '';
+  const panel = document.getElementById('tab-' + tabKey);
+  return { tabName, tabKey, panel };
+}
+function csvEscape(v) {
+  v = (v == null) ? '' : String(v);
+  if (/[",\n]/.test(v)) return '"' + v.replace(/"/g, '""') + '"';
+  return v;
+}
+function tableToCsvRows(table) {
+  const rows = [];
+  table.querySelectorAll('tr').forEach(tr => {
+    const cells = Array.from(tr.querySelectorAll('th,td')).map(c => c.innerText.trim().replace(/\s+/g, ' '));
+    if (cells.length) rows.push(cells);
+  });
+  return rows;
+}
+function exportActiveReport(kind) {
+  const { tabName, panel } = activeReportInfo();
+  if (!panel) return;
+  if (kind === 'pdf') {
+    document.body.classList.add('printing-report');
+    panel.classList.add('is-print-target');
+    window.print();
+    setTimeout(() => {
+      document.body.classList.remove('printing-report');
+      panel.classList.remove('is-print-target');
+    }, 500);
+    return;
+  }
+  // CSV / Excel
+  const tables = panel.querySelectorAll('table');
+  if (!tables.length) { sdAlert('Nothing to export on this tab.', 'Nothing to Export'); return; }
+  const lines = [];
+  const title = tabName + ' — ' + new Date().toLocaleDateString('en-IN');
+  lines.push(csvEscape(title));
+  lines.push('');
+  tables.forEach((tbl, i) => {
+    if (tables.length > 1) {
+      const heading = tbl.closest('.card')?.querySelector('.card-title')?.innerText?.trim() || ('Section ' + (i + 1));
+      lines.push(csvEscape(heading));
+    }
+    tableToCsvRows(tbl).forEach(r => lines.push(r.map(csvEscape).join(',')));
+    lines.push('');
+  });
+  const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = tabName.toLowerCase().replace(/[^a-z0-9]+/g, '_') + '_' + new Date().toISOString().slice(0, 10) + '.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+// ── Period preset logic ───────────────────────────────────────────────────
+// Computes from/to dates from a preset key. "custom" returns nothing and
+// lets the user's manual date inputs drive the range.
+function ymd(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+function fyBounds(refDate) {
+  // Indian FY = April 1 → March 31. If month >= April, FY starts this year; else last year.
+  const y = refDate.getMonth() >= 3 ? refDate.getFullYear() : refDate.getFullYear() - 1;
+  return { from: `${y}-04-01`, to: `${y + 1}-03-31` };
+}
+function presetRange(key) {
+  const now = new Date();
+  if (key === 'today') return { from: ymd(now), to: ymd(now) };
+  if (key === 'last7') {
+    const d = new Date(now); d.setDate(d.getDate() - 6);
+    return { from: ymd(d), to: ymd(now) };
+  }
+  if (key === 'thisMonth') {
+    const a = new Date(now.getFullYear(), now.getMonth(), 1);
+    const b = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return { from: ymd(a), to: ymd(b) };
+  }
+  if (key === 'lastMonth') {
+    const a = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const b = new Date(now.getFullYear(), now.getMonth(), 0);
+    return { from: ymd(a), to: ymd(b) };
+  }
+  if (key === 'thisFY') return fyBounds(now);
+  if (key === 'lastFY') {
+    const prev = new Date(now.getFullYear() - 1, now.getMonth(), 1);
+    return fyBounds(prev);
+  }
+  return null; // custom
+}
+
+function applyPreset() {
+  const sel = document.getElementById('periodPreset');
+  const key = sel.value;
+  const wrap = document.getElementById('customRangeWrap');
+  if (key === 'custom') {
+    wrap.style.display = 'inline-flex';
+    return; // user picks dates manually
+  }
+  wrap.style.display = 'none';
+  const r = presetRange(key);
+  if (r) {
+    document.getElementById('fromDate').value = r.from;
+    document.getElementById('toDate').value = r.to;
+  }
+}
+document.getElementById('periodPreset').addEventListener('change', () => { applyPreset(); load(); });
+document.getElementById('btnApply').addEventListener('click', load);
+// Compatibility shim — older code paths still call setFY() to seed dates
+function setFY() { const sel = document.getElementById('periodPreset'); sel.value = 'thisFY'; applyPreset(); }
+
+async function loadTB() {
+  const qs = new URLSearchParams();
+  const f = document.getElementById('fromDate').value, t = document.getElementById('toDate').value;
+  if (f) qs.set('from', f); if (t) qs.set('to', t);
+  const r = await apiFetch('/v2/trial-balance?' + qs).then(r => r.json());
+  const tbody = document.getElementById('tbBody');
+  tbody.innerHTML = '';
+  let td = 0, tc = 0, tb = 0;
+  (r.rows || []).forEach(row => {
+    td += row.debit; tc += row.credit; tb += row.balance;
+    tbody.insertAdjacentHTML('beforeend',
+      `<tr><td>${row.account}</td><td class="num">${fmt(row.debit)}</td><td class="num">${fmt(row.credit)}</td><td class="num">${fmt(row.balance)}</td></tr>`);
+  });
+  document.getElementById('tbTotDr').textContent = fmt(td);
+  document.getElementById('tbTotCr').textContent = fmt(tc);
+  document.getElementById('tbTotBal').textContent = fmt(tb);
+}
+
+async function loadPL() {
+  const qs = new URLSearchParams();
+  const f = document.getElementById('fromDate').value, t = document.getElementById('toDate').value;
+  if (f) qs.set('from', f); if (t) qs.set('to', t);
+  const r = await apiFetch('/v2/profit-loss?' + qs).then(r => r.json());
+  const rowsOf = (obj) => Object.entries(obj || {}).map(([k, v]) =>
+    `<tr><td>${k}</td><td class="num">${fmt(v)}</td></tr>`).join('') || '<tr><td class="text-muted" colspan="2">No entries</td></tr>';
+  document.getElementById('plIncome').innerHTML = rowsOf(r.income);
+  document.getElementById('plExpense').innerHTML = rowsOf(r.expense);
+  document.getElementById('plTotIncome').textContent = fmt(r.total_income);
+  document.getElementById('plTotExpense').textContent = fmt(r.total_expense);
+  document.getElementById('plNetProfit').textContent = fmt(r.net_profit);
+}
+
+async function loadBS() {
+  const qs = new URLSearchParams();
+  const t = document.getElementById('toDate').value;
+  if (t) qs.set('to', t);
+  const r = await apiFetch('/v2/balance-sheet?' + qs).then(r => r.json());
+  const rowsOf = (obj) => Object.entries(obj || {}).map(([k, v]) =>
+    `<tr><td>${k}</td><td class="num">${fmt(v)}</td></tr>`).join('') || '<tr><td class="text-muted" colspan="2">No entries</td></tr>';
+  document.getElementById('bsAssets').innerHTML = rowsOf(r.asset);
+  document.getElementById('bsLiabilities').innerHTML = rowsOf(r.liability);
+  document.getElementById('bsEquity').innerHTML = rowsOf(r.equity);
+}
+
+// Date display normaliser — every list/table date in this page renders as DD-MM-YYYY.
+function fmtDate(s) {
+  if (!s) return '';
+  // Accept ISO (YYYY-MM-DD or ISO datetime), DD-MM-YYYY, or DD-Mon-YYYY
+  const iso = String(s).slice(0, 10);
+  const ymdMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (ymdMatch) return `${ymdMatch[3]}-${ymdMatch[2]}-${ymdMatch[1]}`;
+  const dmyMatch = /^(\d{2})-(\d{2})-(\d{4})$/.exec(iso);
+  if (dmyMatch) return iso;
+  const dMonY = /^(\d{2})-([A-Za-z]{3})-(\d{4})$/.exec(iso);
+  if (dMonY) {
+    const m = { Jan:'01', Feb:'02', Mar:'03', Apr:'04', May:'05', Jun:'06', Jul:'07', Aug:'08', Sep:'09', Oct:'10', Nov:'11', Dec:'12' };
+    return `${dMonY[1]}-${m[dMonY[2]] || dMonY[2]}-${dMonY[3]}`;
+  }
+  return String(s);
+}
+
+function escapeAttr(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+function escapeHtml(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+async function loadRec() {
+  const qs = new URLSearchParams(); const t = document.getElementById('toDate').value; if (t) qs.set('to', t);
+  const r = await apiFetch('/v2/receivables?' + qs).then(r => r.json());
+  document.getElementById('recBody').innerHTML = (r.rows || []).map(x => {
+    const p = escapeAttr(x.party);
+    return `<tr><td><a class="party-link" data-party="${p}" style="color:var(--accent-purchase);text-decoration:underline;cursor:pointer;">${escapeHtml(x.party)}</a></td><td class="num">${fmt(x.balance)}</td></tr>`;
+  }).join('') || '<tr><td colspan="2" class="text-muted">No receivables</td></tr>';
+  document.getElementById('recTot').textContent = fmt(r.total);
+  wireLedgerLinks('recBody');
+}
+
+async function loadPay() {
+  const qs = new URLSearchParams(); const t = document.getElementById('toDate').value; if (t) qs.set('to', t);
+  const r = await apiFetch('/v2/payables?' + qs).then(r => r.json());
+  document.getElementById('payBody').innerHTML = (r.rows || []).map(x => {
+    const p = escapeAttr(x.party);
+    return `<tr><td><a class="party-link" data-party="${p}" style="color:var(--accent-purchase);text-decoration:underline;cursor:pointer;">${escapeHtml(x.party)}</a></td><td class="num">${fmt(x.balance)}</td></tr>`;
+  }).join('') || '<tr><td colspan="2" class="text-muted">No payables</td></tr>';
+  document.getElementById('payTot').textContent = fmt(r.total);
+  wireLedgerLinks('payBody');
+}
+
+function wireLedgerLinks(bodyId) {
+  document.getElementById(bodyId).querySelectorAll('.party-link').forEach(a =>
+    a.addEventListener('click', () => openPartyDrawer(a.dataset.party)));
+}
+
+async function openPartyDrawer(party) {
+  const drawer = document.getElementById('partyDrawer');
+  drawer.classList.add('open');
+  document.getElementById('partyDrawerTitle').textContent = party;
+  document.getElementById('partyDrawerBody').innerHTML = '<div style="text-align:center;color:var(--ink-3);padding:30px;">Loading…</div>';
+  try {
+    const r = await apiFetch('/ledger/' + encodeURIComponent(party)).then(r => r.json());
+    if (r.error) { document.getElementById('partyDrawerBody').innerHTML = `<div style="color:var(--red);padding:20px;">${escapeHtml(r.error)}</div>`; return; }
+    const entries = r.entries || [];
+    const closing = r.closing_balance || 0;
+    const closingBadge = closing >= 0
+      ? `<span class="pill pill-green">Dr ${fmt(closing)}</span>`
+      : `<span class="pill pill-red">Cr ${fmt(Math.abs(closing))}</span>`;
+    const rows = entries.length
+      ? entries.map(e => `<tr>
+          <td style="font-size:12px;color:var(--ink-3);white-space:nowrap;">${fmtDate(e.date || e.entry_date)}</td>
+          <td>${escapeHtml(e.particulars || e.narration || '—')}</td>
+          <td style="font-family:'JetBrains Mono',monospace;font-size:11px;">${escapeHtml(e.ref_id || e.ref_doc_no || '')}</td>
+          <td class="num">${e.debit ? fmt(e.debit) : ''}</td>
+          <td class="num">${e.credit ? fmt(e.credit) : ''}</td>
+          <td class="num">${fmt(e.balance)}</td>
+        </tr>`).join('')
+      : '<tr><td colspan="6" class="text-muted" style="text-align:center;padding:20px;">No transactions</td></tr>';
+    document.getElementById('partyDrawerBody').innerHTML = `
+      <div style="padding:12px 16px;background:var(--surface-2);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+        <div class="text-xs text-muted">Closing balance</div>
+        <div style="font-weight:800;">${closingBadge}</div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="table" style="margin:0;">
+          <thead><tr><th>Date</th><th>Particulars</th><th>Ref</th><th class="num">Debit</th><th class="num">Credit</th><th class="num">Balance</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div style="padding:14px 16px;display:flex;gap:8px;justify-content:flex-end;border-top:1px solid var(--border);">
+        <a class="btn btn-primary btn-sm" href="/download-ledger/${encodeURIComponent(party)}" target="_blank">Download PDF</a>
+      </div>`;
+  } catch (e) {
+    document.getElementById('partyDrawerBody').innerHTML = `<div style="color:var(--red);padding:20px;">Network error: ${escapeHtml(e.message)}</div>`;
+  }
+}
+function closePartyDrawer() { document.getElementById('partyDrawer').classList.remove('open'); }
+
+
+async function loadGST() {
+  const qs = new URLSearchParams();
+  const f = document.getElementById('fromDate').value, t = document.getElementById('toDate').value;
+  if (f) qs.set('from', f); if (t) qs.set('to', t);
+  const r = await apiFetch('/v2/gstr-3b?' + qs).then(r => r.json());
+  document.getElementById('gCo').textContent = fmt(r.cgst_output);
+  document.getElementById('gSo').textContent = fmt(r.sgst_output);
+  document.getElementById('gIo').textContent = fmt(r.igst_output);
+  document.getElementById('gTo').textContent = fmt(r.total_output);
+  document.getElementById('gCi').textContent = fmt(r.cgst_input);
+  document.getElementById('gSi').textContent = fmt(r.sgst_input);
+  document.getElementById('gIi').textContent = fmt(r.igst_input);
+  document.getElementById('gTi').textContent = fmt(r.total_input);
+  document.getElementById('gNet').textContent = fmt(r.net_payable);
+}
+
+async function loadLock() {
+  const r = await apiFetch('/v2/period-locks').then(r => r.json());
+  document.getElementById('lockBody').innerHTML = (r.rows || []).map(x =>
+    `<tr><td><span class="pill pill-red">${escapeHtml(x.fy)}</span></td><td style="white-space:nowrap;">${fmtDate(x.locked_at)}</td><td>${escapeHtml(x.locked_by || '')}</td><td class="num"><button class="btn btn-ghost btn-sm" data-unlock="${escapeAttr(x.fy)}">Unlock</button></td></tr>`).join('')
+    || '<tr><td colspan="4" class="text-muted">No locked periods</td></tr>';
+  document.getElementById('lockBody').querySelectorAll('[data-unlock]').forEach(b => b.addEventListener('click', async () => {
+    const ok = await sdConfirm('Unlock <strong>FY ' + b.dataset.unlock + '</strong>?<br><span style="font-size:12px;color:#9ca3af;">This will allow editing of that financial year.</span>', 'Unlock Period', { okLabel: 'Unlock', cancelLabel: 'Cancel' });
+    if (!ok) return;
+    sdLoading('Unlocking Period…', '');
+    try {
+      const resp = await apiFetch('/v2/period-locks/' + encodeURIComponent(b.dataset.unlock), { method: 'DELETE' });
+      sdDismiss();
+      if (!resp.ok) { sdError('Unlock failed: ' + resp.status + ' ' + resp.statusText, 'Unlock Failed'); return; }
+      const rr = await resp.json();
+      if (rr.error) { sdError(rr.error, 'Unlock Failed'); return; }
+      loadLock();
+    } catch (e) { sdDismiss(); sdError(e.message, 'Unlock Error'); }
+  }));
+}
+
+document.getElementById('btnLock').addEventListener('click', async () => {
+  const fy = document.getElementById('lockFY').value.trim();
+  if (!fy) { sdAlert('Enter FY like 2025-26', 'FY Required'); return; }
+  const ok = await sdConfirm('Lock <strong>FY ' + fy + '</strong>?<br><span style="font-size:12px;color:#ef4444;">No invoices or expenses can be saved for that period.</span>', 'Lock Period', { okLabel: 'Lock', cancelLabel: 'Cancel' });
+  if (!ok) return;
+  sdLoading('Locking Period…', '');
+  const r = await apiFetch('/v2/period-locks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fy }) }).then(r => r.json());
+  sdDismiss();
+  if (r.error) { sdError(r.error, 'Lock Failed'); return; }
+  document.getElementById('lockFY').value = '';
+  loadLock();
+});
+
+// ─── Bank Reconciliation ─────────────────────────────────────────────────────
+
+// ── Classify modal dropdowns — TomSelect instances ───────────────────────────
+// Separate from tsExpAccount (used by the Expenses tab for #eAccount).
+let tsBExpAccount      = null; // Bank Recon classify → Expense Ledger (#bExpAccount)
+let tsBJnlDr           = null;
+let tsBJnlCr           = null;
+let tsBVenParty        = null;
+let _classifyDropdownsInit = false;
+
+function initClassifyDropdowns() {
+  if (_classifyDropdownsInit) return;
+  _classifyDropdownsInit = true;
+
+  const cfg = { controlInput: null, create: false, dropdownParent: 'body',
+    render: { option: (d, e) => `<div style="white-space:nowrap">${e(d.text)}</div>` } };
+
+  tsBExpAccount = new TomSelect('#bExpAccount', cfg);
+  tsBJnlDr      = new TomSelect('#bJnlDr',     cfg);
+  tsBJnlCr      = new TomSelect('#bJnlCr',     cfg);
+
+  // Vendor party dropdown — options come from bankPartyNames (fetched in loadBank).
+  // create:true lets the user type a new party name not yet in the list.
+  tsBVenParty = new TomSelect('#bVenParty', {
+    options:      bankPartyNames.map(n => ({ value: n, text: n })),
+    valueField:   'value',
+    labelField:   'text',
+    searchField:  'text',
+    create:       true,
+    dropdownParent: 'body',
+    placeholder:  'Search or type party name…',
+    render: {
+      option:     (d, e) => `<div style="white-space:nowrap">${e(d.text)}</div>`,
+      no_results: () => `<div style="padding:8px 12px; color:var(--ink-3);">No parties found — type to add a new one</div>`,
+    },
+  });
+}
+
+// classify-modal tab switching
+document.querySelectorAll('[data-ctab]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-ctab]').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.ctab-panel').forEach(p => p.style.display = 'none');
+    btn.classList.add('active');
+    document.getElementById('ctab-' + btn.dataset.ctab).style.display = '';
+  });
+});
+
+let bankRowsCache  = [];
+let bankPartyNames = []; // pre-loaded party names for classify modal vendor dropdown
+let tsBankFilter   = null;
+let bankCurrentTxnId = null;
+let bankSortDir = 'desc'; // newest first by default
+
+async function loadBank() {
+  if (!tsBankFilter) {
+    tsBankFilter = new TomSelect('#bankFilter', { controlInput: null, create: false, dropdownParent: 'body' });
+    tsBankFilter.on('change', () => loadBank());
+    document.getElementById('bankSearch').addEventListener('input', renderBank);
+    document.getElementById('bankCheckAll').addEventListener('change', (e) => {
+      document.querySelectorAll('#bankBody .bank-cb').forEach(cb => { cb.checked = e.target.checked; });
+      updateBulkDeleteBtn();
+    });
+    document.getElementById('btnBulkDelete').addEventListener('click', bulkDeleteBank);
+    document.getElementById('bankDateTh').addEventListener('click', () => {
+      bankSortDir = bankSortDir === 'desc' ? 'asc' : 'desc';
+      const th = document.getElementById('bankDateTh');
+      th.classList.toggle('sort-asc',  bankSortDir === 'asc');
+      th.classList.toggle('sort-desc', bankSortDir === 'desc');
+      th.querySelector('.sort-icon').textContent = bankSortDir === 'asc' ? '▲' : '▼';
+      renderBank();
+    });
+  }
+  const filter = tsBankFilter.getValue();
+  const from = document.getElementById('fromDate').value;
+  const to   = document.getElementById('toDate').value;
+  const qs = new URLSearchParams();
+  if (filter) qs.set('status', filter);
+  if (from)   qs.set('from', from);
+  if (to)     qs.set('to', to);
+  const qStr = qs.toString() ? '?' + qs.toString() : '';
+  const r = await apiFetch('/v2/bank/transactions' + qStr).then(r => r.json());
+  bankRowsCache = r.rows || [];
+  renderBank();
+  updateBankStats();
+
+  // Load party names in background for the vendor-payment classify dropdown
+  fetch('/v2/party-names').then(res => res.json()).then(data => {
+    bankPartyNames = data.names || [];
+    // If classify modal was already opened once, push new names into tsBVenParty
+    if (tsBVenParty) {
+      bankPartyNames.forEach(n => { if (!tsBVenParty.options[n]) tsBVenParty.addOption({ value: n, text: n }); });
+      tsBVenParty.refreshOptions(false);
+    }
+  }).catch(() => {});
+}
+
+function bankStatusBadge(t) {
+  if (t.matched_payment_id)
+    return `<span class="pill pill-green" title="Matched to payment ${escapeAttr(t.matched_payment_id)}">Matched</span>`;
+  if (!t.mapped_type)
+    return `<span class="pill pill-amber">Unreconciled</span>`;
+  const labels = {
+    expense:        ['pill-blue',    'Expense'],
+    vendor_payment: ['pill-purchase','Vendor Pmt'],
+    journal:        ['pill-slate',   'Journal'],
+    transfer:       ['pill-slate',   'Transfer'],
+    other:          ['pill-slate',   'Other'],
+  };
+  const [cls, txt] = labels[t.mapped_type] || ['pill-slate', t.mapped_type];
+  const note = t.mapped_note ? ` · ${escapeAttr(t.mapped_note)}` : '';
+  return `<span class="pill ${cls}" title="${txt}${note}">${txt}</span>`;
+}
+
+function bankActionBtn(t) {
+  const isReconciled = !!(t.matched_payment_id || t.mapped_type);
+  if (t.matched_payment_id)
+    return `<button class="btn btn-ghost btn-sm" data-unmatch="${escapeAttr(t.txn_id)}">Unmatch</button>`;
+  if (t.mapped_type)
+    return `<button class="btn btn-ghost btn-sm" data-unclassify="${escapeAttr(t.txn_id)}">Undo</button>`;
+  return `<button class="btn btn-primary btn-sm" data-classify="${escapeAttr(t.txn_id)}">Reconcile</button>`;
+}
+
+function renderBank() {
+  const search = (document.getElementById('bankSearch').value || '').toLowerCase().trim();
+  let rows = bankRowsCache;
+  if (search) {
+    rows = rows.filter(t =>
+      (t.description || '').toLowerCase().includes(search) ||
+      (t.ref_no || '').toLowerCase().includes(search) ||
+      (t.mapped_note || '').toLowerCase().includes(search));
+  }
+  rows = [...rows].sort((a, b) => {
+    const da = a.txn_date || '', db = b.txn_date || '';
+    return bankSortDir === 'asc' ? da.localeCompare(db) : db.localeCompare(da);
+  });
+  document.getElementById('bankBody').innerHTML = rows.length ? rows.map(t => `<tr>
+    <td><input type="checkbox" class="bank-cb" value="${escapeAttr(t.txn_id)}"></td>
+    <td style="white-space:nowrap;">${fmtDate(t.txn_date)}</td>
+    <td style="max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeAttr(t.description||'')}">${escapeHtml(t.description || '')}</td>
+    <td class="text-xs">${escapeHtml(t.ref_no || '')}</td>
+    <td class="num">${t.debit  ? fmt(t.debit)  : '—'}</td>
+    <td class="num">${t.credit ? fmt(t.credit) : '—'}</td>
+    <td>${bankStatusBadge(t)}</td>
+    <td class="num" style="white-space:nowrap;">
+      ${bankActionBtn(t)}
+      <button class="btn btn-ghost btn-sm" style="color:var(--red);" data-del="${escapeAttr(t.txn_id)}" title="Delete row">×</button>
+    </td>
+  </tr>`).join('')
+    : '<tr><td colspan="8" class="text-muted" style="text-align:center;padding:20px;">No transactions</td></tr>';
+
+  document.getElementById('bankBody').querySelectorAll('[data-classify]').forEach(b =>
+    b.addEventListener('click', () => openClassify(b.dataset.classify)));
+  document.getElementById('bankBody').querySelectorAll('[data-unmatch]').forEach(b =>
+    b.addEventListener('click', async () => {
+      const ok = await sdConfirm('Unmatch this transaction?', 'Unmatch', { okLabel: 'Unmatch', cancelLabel: 'Cancel' });
+      if (!ok) return;
+      sdLoading('Processing…', '');
+      await apiFetch('/v2/bank/unmatch/' + encodeURIComponent(b.dataset.unmatch), { method: 'POST' });
+      sdDismiss(); loadBank();
+    }));
+  document.getElementById('bankBody').querySelectorAll('[data-unclassify]').forEach(b =>
+    b.addEventListener('click', async () => {
+      const ok = await sdConfirm('Remove this classification?<br><span style="font-size:12px;color:#ef4444;">Any linked expense or journal entry will be deleted.</span>', 'Remove Classification', { okLabel: 'Remove', cancelLabel: 'Cancel' });
+      if (!ok) return;
+      sdLoading('Removing…', '');
+      const res = await apiFetch('/v2/bank/unclassify/' + encodeURIComponent(b.dataset.unclassify), { method: 'POST' });
+      const j = await res.json().catch(() => ({}));
+      sdDismiss();
+      if (j.error) { sdError(j.error, 'Error'); return; }
+      loadBank();
+    }));
+  document.getElementById('bankBody').querySelectorAll('[data-del]').forEach(b =>
+    b.addEventListener('click', async () => {
+      const ok = await sdConfirm('Delete this bank transaction?<br><span style="font-size:12px;color:#ef4444;">This cannot be undone.</span>', 'Delete Transaction', { okLabel: 'Delete', cancelLabel: 'Cancel' });
+      if (!ok) return;
+      sdLoading('Deleting…', '');
+      const res = await apiFetch('/v2/bank/transactions/' + encodeURIComponent(b.dataset.del), { method: 'DELETE' });
+      const j = await res.json().catch(() => ({}));
+      sdDismiss();
+      if (j.error) sdError(j.error, 'Error');
+      loadBank();
+    }));
+  document.getElementById('bankBody').querySelectorAll('.bank-cb').forEach(cb =>
+    cb.addEventListener('change', updateBulkDeleteBtn));
+  updateBulkDeleteBtn();
+}
+
+function updateBulkDeleteBtn() {
+  const n = document.querySelectorAll('#bankBody .bank-cb:checked').length;
+  document.getElementById('btnBulkDelete').style.display = n > 0 ? '' : 'none';
+  document.getElementById('bulkDeleteCount').textContent = n;
+}
+
+async function bulkDeleteBank() {
+  const ids = Array.from(document.querySelectorAll('#bankBody .bank-cb:checked')).map(cb => cb.value);
+  if (!ids.length) return;
+  const ok = await sdConfirm(`Delete <strong>${ids.length}</strong> bank transaction${ids.length > 1 ? 's' : ''}?<br><span style="font-size:12px;color:#ef4444;">This cannot be undone.</span>`, 'Bulk Delete', { okLabel: 'Delete All', cancelLabel: 'Cancel' });
+  if (!ok) return;
+  sdLoading('Deleting…', `Removing ${ids.length} transaction(s)`);
+  const res = await apiFetch('/v2/bank/transactions/bulk-delete', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ txn_ids: ids }),
+  });
+  const j = await res.json().catch(() => ({}));
+  sdDismiss();
+  if (j.error) sdError(j.error, 'Error');
+  document.getElementById('bankCheckAll').checked = false;
+  loadBank();
+}
+
+function updateBankStats() {
+  const rows = bankRowsCache;
+  const n = rows.length;
+  const totalDebit  = rows.reduce((s, t) => s + (parseFloat(t.debit)  || 0), 0);
+  const totalCredit = rows.reduce((s, t) => s + (parseFloat(t.credit) || 0), 0);
+  const reconciled  = rows.filter(t => !!(t.matched_payment_id || t.mapped_type)).length;
+  const unrec       = n - reconciled;
+  const pct         = n > 0 ? Math.round((reconciled / n) * 100) : 0;
+
+  document.getElementById('bsCount').textContent    = n.toLocaleString('en-IN');
+  document.getElementById('bsPeriodLabel').textContent = (document.getElementById('fromDate').value && document.getElementById('toDate').value)
+    ? fmtDate(document.getElementById('fromDate').value) + ' – ' + fmtDate(document.getElementById('toDate').value)
+    : 'All time';
+
+  document.getElementById('bsDebit').textContent    = '₹' + fmt(totalDebit);
+  document.getElementById('bsDebitSub').textContent = rows.filter(t => parseFloat(t.debit) > 0).length + ' entries';
+
+  document.getElementById('bsCredit').textContent   = '₹' + fmt(totalCredit);
+  document.getElementById('bsCreditSub').textContent = rows.filter(t => parseFloat(t.credit) > 0).length + ' entries';
+
+  document.getElementById('bsRecon').textContent    = reconciled.toLocaleString('en-IN');
+  document.getElementById('bsReconSub').textContent = pct + '% of total';
+
+  document.getElementById('bsUnrecon').textContent  = unrec.toLocaleString('en-IN');
+  document.getElementById('bsUnreconSub').textContent = unrec > 0 ? 'Action needed' : 'All clear';
+  document.getElementById('bsUnrecon').style.color  = unrec > 0 ? 'var(--amber,#d97706)' : 'var(--green)';
+}
+
+async function openClassify(txn_id) {
+  initClassifyDropdowns();
+  bankCurrentTxnId = txn_id;
+  const txn = bankRowsCache.find(t => t.txn_id === txn_id) || {};
+  const amt  = (parseFloat(txn.debit) || parseFloat(txn.credit) || 0).toFixed(2);
+  const date = txn.txn_date || new Date().toISOString().slice(0, 10);
+
+  document.getElementById('bankMatchTxnInfo').innerHTML =
+    `<strong>${fmtDate(txn.txn_date)}</strong> · ${escapeHtml(txn.description || '')} · ` +
+    (txn.debit ? `<span style="color:var(--red);">Out ₹${fmt(txn.debit)}</span>` : `<span style="color:var(--green);">In ₹${fmt(txn.credit)}</span>`);
+
+  // Pre-fill date & amount fields
+  ['bExpDate','bVenDate','bJnlDate'].forEach(id => { document.getElementById(id).value = date; });
+  ['bExpAmt','bVenAmt','bJnlAmt'].forEach(id => { document.getElementById(id).value = amt; });
+  ['bExpVendor','bExpNote','bVenInv','bVenNote','bJnlParty','bJnlNarr','bOtherNote']
+    .forEach(id => { document.getElementById(id).value = ''; });
+
+  // Reset TomSelect dropdowns
+  if (tsBExpAccount) tsBExpAccount.setValue('EXP_GENERAL', true);
+  if (tsBVenParty) tsBVenParty.clear(true);
+
+  // Smart journal defaults: debit txn (money out) → DR Expense / CR Bank; credit (money in) → DR Bank / CR Sales
+  if (parseFloat(txn.debit) > 0) {
+    tsBJnlDr.setValue('EXP_GENERAL', true);
+    tsBJnlCr.setValue('BANK', true);
+  } else {
+    tsBJnlDr.setValue('BANK', true);
+    tsBJnlCr.setValue('SALES', true);
+  }
+
+  // Load match-payment candidates
+  loadMatchCandidates(txn_id, txn);
+
+  // Reset to first tab
+  document.querySelectorAll('[data-ctab]').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.ctab-panel').forEach(p => p.style.display = 'none');
+  document.querySelector('[data-ctab="match"]').classList.add('active');
+  document.getElementById('ctab-match').style.display = '';
+
+  document.getElementById('bankMatchModal').style.display = 'flex';
+}
+
+async function loadMatchCandidates(txn_id, txn) {
+  const list = document.getElementById('bankMatchList');
+  list.innerHTML = '<div style="padding:20px; text-align:center; color:var(--ink-3);">Loading…</div>';
+  const r = await apiFetch('/v2/bank/candidates/' + encodeURIComponent(txn_id)).then(r => r.json());
+  if (r.error) { list.innerHTML = `<div style="padding:16px; color:var(--red);">${escapeHtml(r.error)}</div>`; return; }
+  if (!r.candidates || !r.candidates.length) {
+    list.innerHTML = '<div style="text-align:center;color:var(--ink-3);padding:30px 20px;">No matching payments found for this amount.<br><span class="text-xs">Create a payment / receipt with the same amount, or use one of the other tabs to categorise this transaction.</span></div>';
+    return;
+  }
+  list.innerHTML = '<table class="table"><thead><tr><th>Date</th><th>Party</th><th>Type</th><th class="num">Amount</th><th>Ref</th><th></th></tr></thead><tbody>'
+    + r.candidates.map(p => `<tr>
+        <td style="white-space:nowrap;">${fmtDate(p.payment_date)}</td>
+        <td><strong>${escapeHtml(p.party_name || '—')}</strong></td>
+        <td>${escapeHtml(p.payment_type || '')}</td>
+        <td class="num">₹${fmt(p.amount)}</td>
+        <td class="text-xs" style="font-family:'JetBrains Mono',monospace;">${escapeHtml(p.payment_id)}</td>
+        <td><button class="btn btn-primary btn-sm" data-pid="${escapeAttr(p.payment_id)}">Match</button></td>
+      </tr>`).join('') + '</tbody></table>';
+  list.querySelectorAll('[data-pid]').forEach(b => b.addEventListener('click', async () => {
+    const rr = await apiFetch('/v2/bank/match', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ txn_id, payment_id: b.dataset.pid }),
+    }).then(r => r.json());
+    if (rr.error) { sdError(rr.error, 'Match Failed'); return; }
+    closeBankMatch();
+    loadBank();
+  }));
+}
+
+async function classifyTxn(payload) {
+  if (!bankCurrentTxnId) return;
+  const res = await apiFetch('/v2/bank/classify', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ txn_id: bankCurrentTxnId, ...payload }),
+  });
+  const j = await res.json().catch(() => ({}));
+  if (j.error) { sdError(j.error, 'Classification Failed'); return; }
+  closeBankMatch();
+  loadBank();
+}
+
+document.getElementById('btnSaveExpense').addEventListener('click', () => classifyTxn({
+  mapping_type: 'expense',
+  date:         document.getElementById('bExpDate').value,
+  amount:       document.getElementById('bExpAmt').value,
+  account_code: document.getElementById('bExpAccount').value,
+  vendor:       document.getElementById('bExpVendor').value,
+  note:         document.getElementById('bExpNote').value,
+  narration:    tsBExpAccount ? (tsBExpAccount.getOption(tsBExpAccount.getValue()) || {}).textContent || '' : document.getElementById('bExpAccount').options[document.getElementById('bExpAccount').selectedIndex]?.text || '',
+}));
+
+document.getElementById('btnSaveVendor').addEventListener('click', () => classifyTxn({
+  mapping_type: 'vendor_payment',
+  date:         document.getElementById('bVenDate').value,
+  amount:       document.getElementById('bVenAmt').value,
+  party_name:   tsBVenParty ? tsBVenParty.getValue() : document.getElementById('bVenParty').value,
+  ref_invoice:  document.getElementById('bVenInv').value,
+  note:         document.getElementById('bVenNote').value,
+}));
+
+document.getElementById('btnSaveJournal').addEventListener('click', () => {
+  if (!document.getElementById('bJnlDr').value || !document.getElementById('bJnlCr').value)
+  { sdAlert('Please select both DR and CR accounts.', 'Required'); return; }
+  classifyTxn({
+    mapping_type: 'journal',
+    date:         document.getElementById('bJnlDate').value,
+    amount:       document.getElementById('bJnlAmt').value,
+    dr_account:   document.getElementById('bJnlDr').value,
+    cr_account:   document.getElementById('bJnlCr').value,
+    party_name:   document.getElementById('bJnlParty').value,
+    narration:    document.getElementById('bJnlNarr').value,
+  });
+});
+
+document.getElementById('btnSaveOther').addEventListener('click', () => classifyTxn({
+  mapping_type: 'other',
+  note:         document.getElementById('bOtherNote').value,
+}));
+
+function closeBankMatch() {
+  document.getElementById('bankMatchModal').style.display = 'none';
+  bankCurrentTxnId = null;
+}
+
+document.getElementById('btnImport').addEventListener('click', async () => {
+  const f = document.getElementById('bankFile').files[0];
+  if (!f) { sdAlert('Select a file first (CSV, Excel, PDF, or TXT).', 'No File Selected'); return; }
+  _importFile = f;
+  _selectedAccTag = null;
+  document.getElementById('btnConfirmImport').disabled = true;
+  const btn = document.getElementById('btnImport');
+  btnSpinOn(btn);
+  try {
+    await loadBankAccounts();
+    document.getElementById('bankAccModal').style.display = 'flex';
+  } finally {
+    btnSpinOff(btn);
+  }
+});
+document.getElementById('btnBankReload').addEventListener('click', loadBank);
+
+// ─── Bank account select modal ────────────────────────────────────────────────
+let _bankAccounts = [];
+let _selectedAccTag = null;
+let _importFile = null;
+
+function closeBankAccModal() {
+  document.getElementById('bankAccModal').style.display = 'none';
+  _importFile = null;
+  _selectedAccTag = null;
+}
+
+async function loadBankAccounts() {
+  const r = await apiFetch('/v2/bank/accounts').then(r => r.json());
+  _bankAccounts = r.accounts || [];
+  renderBankAccList();
+}
+
+function renderBankAccList() {
+  const list = document.getElementById('bankAccList');
+  if (!_bankAccounts.length) {
+    list.innerHTML = '<div class="text-muted text-xs" style="padding:12px 0;">No bank accounts configured yet. Add one below.</div>';
+    return;
+  }
+  list.innerHTML = _bankAccounts.map(a => {
+    const tag = a.id;
+    const sel = tag === _selectedAccTag;
+    const check = sel
+      ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-sale)" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>`
+      : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--border)" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>`;
+    return `<div class="bank-acc-card${sel ? ' selected' : ''}" data-tag="${escapeAttr(tag)}" onclick="selectBankAcc(this.dataset.tag)">
+      <div style="flex:1; min-width:0;">
+        <div style="font-weight:700; font-size:14px;">${escapeHtml(a.label || a.bank_name || 'Account')}</div>
+        <div class="text-xs text-muted" style="margin-top:3px; line-height:1.5;">
+          ${[a.bank_name, a.account_no, a.ifsc].filter(Boolean).map(escapeHtml).join(' · ')}
+          ${a.account_holder ? '<br>' + escapeHtml(a.account_holder) : ''}
+          ${a.branch ? ' · ' + escapeHtml(a.branch) : ''}
+        </div>
+      </div>
+      ${check}
+    </div>`;
+  }).join('');
+}
+
+function selectBankAcc(tag) {
+  _selectedAccTag = tag;
+  renderBankAccList();
+  document.getElementById('btnConfirmImport').disabled = false;
+}
+
+document.getElementById('btnAddBankAcc').addEventListener('click', () => {
+  const form = document.getElementById('addBankAccForm');
+  form.style.display = form.style.display === 'none' ? '' : 'none';
+});
+
+document.getElementById('btnSaveBankAcc').addEventListener('click', async () => {
+  const label      = document.getElementById('naLabel').value.trim();
+  const account_no = document.getElementById('naAccNo').value.trim();
+  if (!label || !account_no) { sdAlert('Account Label and Account Number are required.', 'Required'); return; }
+  const btn = document.getElementById('btnSaveBankAcc');
+  btnSpinOn(btn);
+  try {
+    const payload = {
+      label,
+      bank_name:      document.getElementById('naBank').value.trim(),
+      account_holder: document.getElementById('naHolder').value.trim(),
+      account_no,
+      ifsc:           document.getElementById('naIfsc').value.trim(),
+      branch:         document.getElementById('naBranch').value.trim(),
+    };
+    const r = await apiFetch('/v2/bank/accounts', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).then(r => r.json());
+    if (r.error) { sdError(r.error, 'Save Failed'); return; }
+    ['naLabel','naBank','naHolder','naAccNo','naIfsc','naBranch'].forEach(id => { document.getElementById(id).value = ''; });
+    document.getElementById('addBankAccForm').style.display = 'none';
+    await loadBankAccounts();
+    selectBankAcc(r.account.id);
+  } finally {
+    btnSpinOff(btn);
+  }
+});
+
+document.getElementById('btnConfirmImport').addEventListener('click', async () => {
+  if (!_importFile) return;
+  const btn = document.getElementById('btnConfirmImport');
+  btnSpinOn(btn);
+  try {
+    const fd = new FormData();
+    fd.append('statement', _importFile);
+    if (_selectedAccTag) fd.append('account_tag', _selectedAccTag);
+    const r = await apiFetch('/v2/bank/import', { method: 'POST', body: fd }).then(r => r.json());
+    if (r.error) { sdError(r.error, 'Import Failed'); return; }
+    closeBankAccModal();
+    document.getElementById('bankFile').value = '';
+    sdSuccess('Import Complete', `Imported ${r.inserted} new row${r.inserted !== 1 ? 's' : ''} (${r.skipped} duplicate${r.skipped !== 1 ? 's' : ''} skipped, ${r.total} total in file).`);
+    loadBank();
+  } finally {
+    btnSpinOff(btn);
+  }
+});
+
+async function loadAudit() {
+  const r = await apiFetch('/v2/audit-log?limit=200').then(r => r.json());
+  document.getElementById('audBody').innerHTML = (r.rows || []).map(x => {
+    const when = x.at ? `${fmtDate(x.at)} ${String(x.at).slice(11,19)}` : '';
+    return `<tr><td style="white-space:nowrap;">${when}</td><td>${escapeHtml(x.actor || '')}</td><td><span class="pill pill-slate">${escapeHtml(x.action)}</span></td><td>${escapeHtml(x.ref_type || '')}</td><td class="text-xs" style="font-family:JetBrains Mono,monospace;">${escapeHtml(x.ref_id || '')}</td><td class="text-xs text-muted">${x.details ? escapeHtml(JSON.stringify(x.details)) : ''}</td></tr>`;
+  }).join('')
+    || '<tr><td colspan="6" class="text-muted">No entries</td></tr>';
+}
+
+function load() {
+  const active = document.querySelector('.tab-bar .tab.active').dataset.tab;
+  if (active === 'tb') return loadTB();
+  if (active === 'pl') return loadPL();
+  if (active === 'bs') return loadBS();
+  if (active === 'rec') return loadRec();
+  if (active === 'pay') return loadPay();
+  if (active === 'gst') return loadGST();
+  if (active === 'lock') return loadLock();
+  if (active === 'bank') return loadBank();
+  if (active === 'aud') return loadAudit();
+}
+
+document.getElementById('btnBackfill').addEventListener('click', async () => {
+  const ok = await sdConfirm('Rebuild journal from existing invoices, payments, and expenses?<br><span style="font-size:12px;color:#9ca3af;">This re-posts all accounting entries.</span>', 'Rebuild Journal', { okLabel: 'Rebuild', cancelLabel: 'Cancel' });
+  if (!ok) return;
+  sdLoading('Rebuilding Journal…', 'Processing invoices, payments, expenses');
+  const r = await apiFetch('/v2/backfill-journal', { method: 'POST' }).then(r => r.json());
+  sdDismiss();
+  if (r.error) { sdError(r.error, 'Rebuild Failed'); return; }
+  sdSuccess('Journal Rebuilt', `Posted ${r.posted || 0} entries (invoices: ${r.invoices || 0}, payments: ${r.payments || 0}, expenses: ${r.expenses || 0}).`);
+  load();
+});
+
+apiFetch('/v2/current-fy').then(r => r.json()).then(d => { document.getElementById('lockFY').placeholder = d.fy || '2025-26'; }).catch(() => {});
+
+setFY();
+load();
+</script>
+</body>
+</html>

@@ -1,0 +1,1187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>Dashboard — {{ profile.get('company_name', 'Sahayak ERP') }}</title>
+{% include "_shell_head.html" %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  /* Dashboard-specific status pills */
+  .status-badge { font-size: 10px; padding: 3px 10px; border-radius: 999px; font-weight: 700; border: 1px solid transparent; }
+  .status-Draft     { background:#f3f4f6; color:#6b7280; border-color:#e5e7eb; }
+  .status-Confirmed { background:#eff6ff; color:#2563eb; border-color:#bfdbfe; }
+  .status-Paid      { background:#f0fdf4; color:#16a34a; border-color:#bbf7d0; }
+  .status-Cancelled { background:#fef2f2; color:#dc2626; border-color:#fecaca; }
+  .age-0  { color:#16a34a; }
+  .age-30 { color:#d97706; }
+  .age-60 { color:#ea580c; }
+  .age-90 { color:#dc2626; font-weight:700; }
+
+  /* Tom Select styling aligned with design system */
+  .ts-wrapper .ts-control { border-radius: var(--radius-sm); padding: 8px 12px; border-color: var(--border); font-size: 13px; min-height: 38px; background: var(--surface); }
+  .ts-wrapper.focus .ts-control { border-color: #93c5fd; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12); }
+  .ts-dropdown { border-radius: var(--radius-sm); box-shadow: var(--shadow-lg); border-color: var(--border); }
+  .ts-wrapper.single .ts-control { padding-right: 2.2rem !important; }
+  .ts-wrapper.single .ts-control .item { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; display: block; }
+
+  /* Action icon buttons in tables */
+  .ico-btn { background:none; border:none; padding:4px; cursor:pointer; color:var(--ink-3); transition:var(--transition); }
+  .ico-btn svg { width:15px; height:15px; display:block; }
+  .ico-btn:hover { color:var(--ink); }
+  .ico-edit:hover { color:var(--accent-purchase); }
+  .ico-download:hover { color:var(--accent-purchase-dark); }
+  .ico-mail:hover { color:var(--green-dark); }
+  .ico-pay:hover { color:var(--accent-sale); }
+  .ico-convert:hover { color:var(--purple); }
+  .ico-delete:hover { color:var(--red-dark); }
+
+  .age-card {
+    border-radius: var(--radius);
+    padding: 12px;
+    text-align: center;
+    border: 1px solid transparent;
+  }
+  .age-card .age-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+  .age-card .age-val { font-size: 18px; font-weight: 800; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .age-green { background: var(--green-light); border-color: #a7f3d0; color: var(--green-dark); }
+  .age-yellow { background: #fefce8; border-color: #fde68a; color: #a16207; }
+  .age-orange { background: var(--accent-sale-light); border-color: #fed7aa; color: var(--accent-sale-dark); }
+  .age-red { background: var(--red-light); border-color: #fca5a5; color: var(--red-dark); }
+</style>
+</head>
+<body>
+{% set active_nav = 'dashboard' %}
+{% set page_title = 'Dashboard' %}
+{% set page_sub = 'Overview · KPIs · Documents · Outstanding · Payments · Ledger' %}
+{% include "_shell_start.html" %}
+
+<div id="globalFyBar" style="display:flex; align-items:center; gap:12px; margin-bottom:12px; padding:8px 14px; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius);">
+  <span style="font-size:13px; font-weight:600; color:var(--ink-2); white-space:nowrap;">Financial Year</span>
+  <select id="globalFyFilter" data-no-enhance style="min-width:160px;"></select>
+  <span style="font-size:12px; color:var(--ink-4);">Filters: Sales Trend, Outstanding &amp; Document History</span>
+</div>
+<div class="stat-grid" id="kpiCards">
+  <div class="stat">
+    <div class="stat-label">Today's Sales</div>
+    <div class="stat-value">₹<span id="kpi_today_sales">--</span></div>
+    <div class="stat-sub">This month: ₹<span id="kpi_month_sales">--</span></div>
+  </div>
+  <div class="stat info">
+    <div class="stat-label">Today's Purchase</div>
+    <div class="stat-value">₹<span id="kpi_today_purchase">--</span></div>
+    <div class="stat-sub">This month: ₹<span id="kpi_month_purchase">--</span></div>
+  </div>
+  <div class="stat warn" onclick="switchTab('outstanding')" style="cursor:pointer;">
+    <div class="stat-label">Outstanding</div>
+    <div class="stat-value" style="color:var(--accent-sale-dark);">₹<span id="kpi_outstanding_total">--</span></div>
+    <div class="stat-sub"><span id="kpi_outstanding_count">--</span> unpaid invoices</div>
+  </div>
+  <div class="stat danger" id="lowStockCard">
+    <div class="stat-label">Low Stock Items</div>
+    <div class="stat-value" style="color:var(--red-dark);"><span id="kpi_low_stock">--</span></div>
+    <div class="stat-sub">Below reorder level</div>
+  </div>
+</div>
+
+<div style="display:grid; grid-template-columns:2fr 1fr; gap:14px; margin-bottom:18px;" class="dash-row">
+  <div class="card">
+    <div class="card-header"><div class="card-title">Monthly Sales Trend</div></div>
+    <div class="card-body" style="height:240px;">
+      <canvas id="salesChart"></canvas>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-title">Top 5 Clients</div></div>
+    <div class="card-body">
+      <div id="topClientsList" style="display:flex; flex-direction:column; gap:10px;"></div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="tab-bar">
+    <button class="tab active" onclick="switchTab('history')" id="tab-history">Document History</button>
+    <button class="tab" onclick="switchTab('outstanding')" id="tab-outstanding">Outstanding</button>
+    <button class="tab" onclick="switchTab('payments')" id="tab-payments">Record Payment</button>
+    <button class="tab" onclick="switchTab('ledger')" id="tab-ledger">Party Ledger</button>
+  </div>
+
+  <div id="panel-history" class="card-body">
+    <div style="display:grid; grid-template-columns:1fr auto auto auto; gap:10px; margin-bottom:14px;" class="dash-filters">
+      <input type="text" id="histSearch" placeholder="Search by Doc No or Party…" oninput="filterHistory()">
+      <input type="date" id="histDateFrom" onchange="filterHistory()" style="min-width:140px;">
+      <input type="date" id="histDateTo" onchange="filterHistory()" style="min-width:140px;">
+      <select id="histTypeFilter" style="min-width:200px;"></select>
+    </div>
+    <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+      <select id="histStatusFilter" style="min-width:160px;">
+        <option value="">All Statuses</option>
+        <option value="Draft">Draft</option>
+        <option value="Confirmed">Confirmed</option>
+        <option value="Paid">Paid</option>
+        <option value="Cancelled">Cancelled</option>
+      </select>
+      <button onclick="selectAll(true)" class="btn btn-ghost btn-sm">Select All</button>
+      <button onclick="selectAll(false)" class="btn btn-ghost btn-sm">Clear</button>
+      <button onclick="downloadZip()" class="btn btn-secondary btn-sm">Download ZIP</button>
+      <a href="/download-report" data-no-load onclick="saNavTo('/download-report','Downloading Sales Report…','Generating Excel'); return false;" class="btn btn-success btn-sm">Sales Report</a>
+      <a href="/download-purchase-report" data-no-load onclick="saNavTo('/download-purchase-report','Downloading Purchase Report…','Generating Excel'); return false;" class="btn btn-success btn-sm" style="background:#0d9488; border-color:#0d9488;">Purchase Report</a>
+      <button onclick="openGstrModal()" class="btn btn-sm" style="background:var(--teal); color:#fff; border-color:var(--teal);">GSTR-1</button>
+      <a href="/accounts" class="btn btn-dark btn-sm">Accounts</a>
+      <span id="wfBadge" class="pill pill-purple hidden">0 pending</span>
+    </div>
+
+    <div class="table-wrap" style="max-height:540px;">
+      <table class="table">
+        <thead>
+          <tr>
+            <th style="width:32px;">✓</th>
+            <th>Doc No</th>
+            <th>Date</th>
+            <th>Party</th>
+            <th class="num">Amount</th>
+            <th style="text-align:center;">Status</th>
+            <th style="text-align:center;">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="histTableBody"></tbody>
+      </table>
+    </div>
+    <div class="text-xs text-muted mt-sm">Showing <span id="histCount">0</span> documents</div>
+  </div>
+
+  <div id="panel-outstanding" class="card-body hidden">
+    <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-bottom:14px;" id="ageBuckets">
+      <div class="age-card age-green">
+        <div class="age-label">0-30 Days</div>
+        <div class="age-val">₹<span id="age0">0</span></div>
+      </div>
+      <div class="age-card age-yellow">
+        <div class="age-label">31-60 Days</div>
+        <div class="age-val">₹<span id="age30">0</span></div>
+      </div>
+      <div class="age-card age-orange">
+        <div class="age-label">61-90 Days</div>
+        <div class="age-val">₹<span id="age60">0</span></div>
+      </div>
+      <div class="age-card age-red">
+        <div class="age-label">90+ Days</div>
+        <div class="age-val">₹<span id="age90">0</span></div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Invoice No</th>
+            <th>Date</th>
+            <th>Client</th>
+            <th class="num">Invoice Amt</th>
+            <th class="num">Paid</th>
+            <th class="num">Balance</th>
+            <th style="text-align:center;">Overdue</th>
+            <th style="text-align:center;">Action</th>
+          </tr>
+        </thead>
+        <tbody id="outstandingTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="panel-payments" class="card-body hidden">
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:18px;" class="dash-payments">
+      <div style="background:var(--surface-2); padding:18px; border-radius:var(--radius); border:1px solid var(--border);">
+        <div class="font-bold mb-md" style="font-size:14px;">Record Payment / Receipt</div>
+        <div style="display:flex; flex-direction:column; gap:12px;">
+          <div>
+            <label class="field-label">Payment Type</label>
+            <select id="pay_type">
+              <option value="receipt">Receipt (Money Received from Client)</option>
+              <option value="payment">Payment (Money Paid to Vendor)</option>
+            </select>
+          </div>
+          <div>
+            <label class="field-label">Party Name</label>
+            <select id="pay_party" data-no-enhance placeholder="Search or select party..."></select>
+          </div>
+          <div>
+            <label class="field-label">Amount (₹)</label>
+            <input type="number" id="pay_amount" placeholder="0.00">
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+            <div>
+              <label class="field-label">Mode</label>
+              <select id="pay_mode">
+                <option>Cash</option>
+                <option>UPI</option>
+                <option>NEFT/RTGS</option>
+                <option>Cheque</option>
+              </select>
+            </div>
+            <div>
+              <label class="field-label">Date</label>
+              <input type="date" id="pay_date">
+            </div>
+          </div>
+          <div>
+            <label class="field-label">Against Invoice (Optional)</label>
+            <input type="text" id="pay_ref" list="invoiceList" placeholder="e.g. SMT/25-26/0001">
+            <datalist id="invoiceList"></datalist>
+          </div>
+          <div>
+            <label class="field-label">Notes</label>
+            <input type="text" id="pay_notes" placeholder="Ref No, Cheque No, etc.">
+            <input type="hidden" id="edit_payment_id" value="">
+            <input type="hidden" id="edit_payment_ts" value="">
+          </div>
+          <div style="display:flex; gap: 8px;">
+            <button id="paymentSubmitBtn" onclick="submitPayment()" class="btn btn-success btn-lg" style="flex:1;">
+              Save Payment Entry
+            </button>
+            <button id="paymentCancelBtn" onclick="cancelEditPayment()" type="button" class="btn btn-ghost btn-lg" style="display:none;">
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="font-bold mb-md" style="font-size:14px;">Recent Payments</div>
+        <div class="table-wrap" style="max-height:540px;">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Party</th>
+                <th class="num">Amount</th>
+                <th style="text-align:center;">Type</th>
+              </tr>
+            </thead>
+            <tbody id="paymentsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="panel-ledger" class="card-body hidden">
+    <div style="display:flex; gap:12px; align-items:end; margin-bottom:16px; flex-wrap:wrap;">
+      <div style="flex:1; max-width:340px;">
+        <label class="field-label">Select Party to View Ledger</label>
+        <select id="ledgerParty" data-no-enhance placeholder="Search party name..."></select>
+      </div>
+      <div style="min-width:140px;">
+        <label class="field-label">Financial Year</label>
+        <select id="ledgerFy" data-no-enhance></select>
+      </div>
+      <button id="btnDownloadLedger" onclick="downloadLedgerPDF()" class="btn btn-dark hidden">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+        Download PDF
+      </button>
+    </div>
+
+    <div id="ledgerSummary" class="hidden" style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-bottom:14px;">
+      <div class="stat info" style="padding:12px 14px;">
+        <div class="stat-label">Total Debit (Dr)</div>
+        <div class="stat-value" style="font-size:18px; color:var(--accent-purchase-dark);">₹<span id="ledger_dr">0</span></div>
+      </div>
+      <div class="stat success" style="padding:12px 14px;">
+        <div class="stat-label">Total Credit (Cr)</div>
+        <div class="stat-value" style="font-size:18px; color:var(--green-dark);">₹<span id="ledger_cr">0</span></div>
+      </div>
+      <div class="stat" id="ledger_balance_card" style="padding:12px 14px;">
+        <div class="stat-label">Closing Balance</div>
+        <div class="stat-value" id="ledger_balance_text" style="font-size:22px;">₹0</div>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Document</th>
+            <th>Narration</th>
+            <th class="num">Debit (Dr)</th>
+            <th class="num">Credit (Cr)</th>
+            <th class="num">Balance</th>
+          </tr>
+        </thead>
+        <tbody id="ledgerTableBody">
+          <tr><td colspan="6" class="empty" style="padding:30px 20px;">Select a party from the dropdown above to view their ledger.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<div id="gstrModal" class="modal-backdrop hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Download GSTR-1</div>
+      <button class="modal-close" onclick="closeGstrModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p class="text-sm text-muted mb-md">Select the month for which you want to generate the GSTR-1 Excel report.</p>
+      <label class="field-label">Filing Month</label>
+      <select id="gstrMonthSelect" data-no-enhance></select>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeGstrModal()" class="btn btn-ghost">Cancel</button>
+      <button onclick="downloadGstr1()" class="btn btn-primary">Download</button>
+    </div>
+  </div>
+</div>
+
+<div id="convModal" class="modal-backdrop hidden">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="convTitle">Convert</div>
+        <div class="text-xs text-muted mt-sm">
+          <span id="convParty"></span> · Status:
+          <span id="convStatus" class="font-bold" style="color:var(--accent-sale);"></span>
+        </div>
+      </div>
+      <button class="modal-close" onclick="closeConvert()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="flex items-center gap-sm mb-md">
+        <label class="text-sm font-bold">Convert to:</label>
+        <select id="convTarget" style="max-width:160px;" data-no-enhance></select>
+      </div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th class="num">Ordered</th>
+              <th class="num">Already Converted</th>
+              <th class="num">Pending</th>
+              <th>Qty to Convert</th>
+            </tr>
+          </thead>
+          <tbody id="convBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeConvert()" class="btn btn-ghost">Cancel</button>
+      <button onclick="doConvert()" class="btn btn-primary">Create &amp; Download</button>
+    </div>
+  </div>
+</div>
+
+<style>
+  @media (max-width: 960px) {
+    .dash-row { grid-template-columns: 1fr !important; }
+    .dash-filters { grid-template-columns: 1fr !important; }
+    .dash-payments { grid-template-columns: 1fr !important; }
+    #ageBuckets { grid-template-columns: 1fr 1fr !important; }
+  }
+</style>
+
+<script>
+const INVOICE_TYPE = "{{ profile.get('invoice_type', 'goods') }}";
+const IS_SERVICE = (INVOICE_TYPE === 'service');
+const PERM_SALE = ("{{ 'true' if current_user.has_permission('sale') else 'false' }}" === "true");
+const PERM_PURCHASE = ("{{ 'true' if current_user.has_permission('purchase') else 'false' }}" === "true");
+
+let allInvoices = [];
+let allPayments = [];
+let salesChart = null;
+
+let tsViewAs, tsTypeFilter, tsStatusFilter, tsPayType, tsPayMode, payPartyTs, ledgerTs, ledgerFyTs, gstrTs;
+let globalFy = '', globalFyTs = null;
+
+document.addEventListener('DOMContentLoaded', async () => {
+    if (IS_SERVICE) {
+        const lowStockCard = document.getElementById('lowStockCard');
+        if (lowStockCard) lowStockCard.style.display = 'none';
+    }
+
+    if (document.getElementById('view_as_select')) {
+        // The shell renders a plain <select>, shell JS already handles navigation.
+        // We do not wrap it with TomSelect to avoid double-binding the change event.
+    }
+
+    let typeOptions = [{value: '', text: 'All Document Types'}];
+    if (PERM_SALE) {
+        typeOptions.push({value: 'invoice', text: 'Tax Invoice (Sale)'});
+        typeOptions.push({value: 'cn', text: 'Credit Note'});
+    }
+    if (PERM_PURCHASE) {
+        typeOptions.push({value: 'po', text: 'Purchase Order'});
+        typeOptions.push({value: 'grn', text: 'Goods Receipt Note'});
+        typeOptions.push({value: 'bill', text: 'Purchase Bill'});
+        typeOptions.push({value: 'dn', text: 'Debit Note'});
+    }
+
+    tsTypeFilter = new TomSelect('#histTypeFilter', {
+        options: typeOptions,
+        controlInput: null,
+        onChange: filterHistory
+    });
+
+    tsStatusFilter = new TomSelect('#histStatusFilter', { controlInput: null, onChange: filterHistory });
+    tsPayType = new TomSelect('#pay_type', { controlInput: null });
+    tsPayMode = new TomSelect('#pay_mode', { controlInput: null });
+
+    setDefaultDates();
+    await Promise.all([loadDashboardData(), loadInvoices(), loadPayments()]);
+    populateDataLists();
+});
+
+function currentFyString() {
+    const d = new Date();
+    const y = d.getFullYear(), mo = d.getMonth() + 1;
+    return mo >= 4 ? `${y}-${String(y + 1).slice(-2)}` : `${y - 1}-${String(y).slice(-2)}`;
+}
+
+function toIsoDate(str) {
+    if (!str) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+    const MO = {Jan:'01',Feb:'02',Mar:'03',Apr:'04',May:'05',Jun:'06',Jul:'07',Aug:'08',Sep:'09',Oct:'10',Nov:'11',Dec:'12'};
+    const p = str.split('-');
+    if (p.length !== 3) return '';
+    const mo = MO[p[1]]; if (!mo) return '';
+    return `${p[2]}-${mo}-${p[0].padStart(2,'0')}`;
+}
+
+function isoToFy(iso) {
+    if (!iso || iso.length < 7) return null;
+    const y = parseInt(iso.slice(0, 4)), mo = parseInt(iso.slice(5, 7));
+    if (!y || !mo) return null;
+    return mo >= 4 ? `${y}-${String(y+1).slice(-2)}` : `${y-1}-${String(y).slice(-2)}`;
+}
+
+function fyDateRange(fyStr) {
+    const m = /^(\d{4})-(\d{2})$/.exec(fyStr || '');
+    if (!m) return null;
+    const sy = parseInt(m[1]);
+    return { from: `${sy}-04-01`, to: `${sy+1}-03-31` };
+}
+
+function setDefaultDates() {
+    const today = new Date();
+    const fyRange = fyDateRange(currentFyString());
+    document.getElementById('histDateFrom').value = fyRange ? fyRange.from : new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+    document.getElementById('histDateTo').value = today.toISOString().split('T')[0];
+    document.getElementById('pay_date').value = today.toISOString().split('T')[0];
+    // Seed the FY dropdown with current FY so it shows immediately before a party is picked
+    const fySelect = document.getElementById('ledgerFy');
+    if (fySelect && !fySelect.options.length) {
+        const fy = currentFyString();
+        fySelect.innerHTML = `<option value="${fy}">${fy}</option>`;
+    }
+}
+
+function formatToDDMonYYYY(ymdStr) {
+    if (!ymdStr) return '';
+    const parts = ymdStr.split('-');
+    if (parts.length === 3 && parts[0].length === 4) {
+        const m = { "01":"Jan", "02":"Feb", "03":"Mar", "04":"Apr", "05":"May", "06":"Jun", "07":"Jul", "08":"Aug", "09":"Sep", "10":"Oct", "11":"Nov", "12":"Dec" };
+        return `${parts[2]}-${m[parts[1]]}-${parts[0]}`;
+    }
+    return ymdStr;
+}
+
+async function loadDashboardData() {
+    try {
+        const fy = globalFy || currentFyString();
+        const res = await fetch('/dashboard-data?fy=' + encodeURIComponent(fy));
+        const d = await res.json();
+        if (d.error) return;
+
+        document.getElementById('kpi_today_sales').textContent = fmt(d.today_sales);
+        document.getElementById('kpi_month_sales').textContent = fmt(d.month_sales);
+        document.getElementById('kpi_today_purchase').textContent = fmt(d.today_purchase);
+        document.getElementById('kpi_month_purchase').textContent = fmt(d.month_purchase);
+        document.getElementById('kpi_outstanding_total').textContent = fmt(d.outstanding_total);
+        document.getElementById('kpi_outstanding_count').textContent = d.outstanding_count;
+        if(document.getElementById('kpi_low_stock')) document.getElementById('kpi_low_stock').textContent = d.low_stock_count;
+
+        const labels = d.monthly_trend.map(x => x[0]);
+        const values = d.monthly_trend.map(x => x[1]);
+        const ctx = document.getElementById('salesChart').getContext('2d');
+        if (salesChart) salesChart.destroy();
+        salesChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{ label: 'Sales (₹)', data: values, backgroundColor: 'rgba(249,115,22,0.75)', borderColor: '#f97316', borderWidth: 1, borderRadius: 6 }]
+            },
+            options: { maintainAspectRatio: false, responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { callback: v => '₹' + fmt(v) } } } }
+        });
+
+        const tcEl = document.getElementById('topClientsList');
+        tcEl.innerHTML = '';
+        const maxVal = d.top_clients[0] ? d.top_clients[0][1] : 1;
+        d.top_clients.forEach(([name, val]) => {
+            const pct = Math.round((val / maxVal) * 100);
+            tcEl.innerHTML += `<div>
+                <div class="flex justify-between text-xs mb-sm" style="gap:8px;">
+                  <span class="font-bold" style="color:var(--ink-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:150px;">${name}</span>
+                  <span class="text-muted">₹${fmt(val)}</span>
+                </div>
+                <div style="height:6px; background:var(--surface-3); border-radius:999px; overflow:hidden;">
+                  <div style="height:6px; background:var(--accent-sale); border-radius:999px; width:${pct}%"></div>
+                </div>
+            </div>`;
+        });
+    } catch(e) {}
+}
+
+async function loadInvoices() {
+    try {
+        const res = await fetch('/invoices-list');
+        allInvoices = await res.json();
+        allInvoices.sort((a,b) => (b.timestamp||'').localeCompare(a.timestamp||''));
+        initGlobalFy();
+        filterHistory();
+        loadOutstanding();
+    } catch(e) {}
+}
+
+async function loadPayments() {
+    try {
+        const res = await fetch('/payments');
+        allPayments = await res.json();
+        renderPaymentsTable(allPayments);
+    } catch(e) {}
+}
+
+function populateDataLists() {
+    const uniqueParties = new Map();
+    allInvoices.forEach(i => {
+        if(i.client_name && !uniqueParties.has(i.client_name.toLowerCase())) {
+            uniqueParties.set(i.client_name.toLowerCase(), i.client_name);
+        }
+    });
+    const parties = Array.from(uniqueParties.values());
+    const invoiceNos = allInvoices.filter(i => i.doc_type === 'invoice' && i.doc_category === 'sale').map(i => i.bill_no);
+
+    const tsOptions = parties.map(p => ({value: p, text: p}));
+
+    // Defensive destroy: if a previous TomSelect instance is attached to the
+    // underlying <select> (via local variable OR auto-enhance), tear it down
+    // before re-creating. Without this, the second call to populateDataLists
+    // (e.g. after a payment is saved) throws "TomSelect already initialised"
+    // and the dropdown silently shows blank options.
+    const tearDown = (id) => {
+      const el = document.getElementById(id);
+      if (el && el.tomselect) { try { el.tomselect.destroy(); } catch {} }
+    };
+
+    tearDown('pay_party'); payPartyTs = null;
+    payPartyTs = new TomSelect("#pay_party", {
+      options: tsOptions, create: true,
+      sortField: { field: "text", direction: "asc" },
+      placeholder: "Select or type party name...",
+      dropdownParent: 'body',
+    });
+
+    tearDown('ledgerParty'); ledgerTs = null;
+    ledgerTs = new TomSelect("#ledgerParty", {
+      options: tsOptions, create: false,
+      sortField: { field: "text", direction: "asc" },
+      placeholder: "Select party to view ledger...",
+      dropdownParent: 'body',
+      onChange: val => { if (val) loadLedger(val); },
+    });
+
+    tearDown('ledgerFy'); ledgerFyTs = null;
+    ledgerFyTs = new TomSelect("#ledgerFy", {
+      create: false,
+      sortField: { field: "text", direction: "desc" },
+      dropdownParent: 'body',
+      onChange: val => { if (val) onLedgerFyChange(val); },
+    });
+
+    document.getElementById('invoiceList').innerHTML = invoiceNos.map(n => `<option value="${n}">`).join('');
+}
+
+function switchTab(tab) {
+    ['history','outstanding','payments','ledger'].forEach(t => {
+        document.getElementById(`panel-${t}`).classList.add('hidden');
+        document.getElementById(`tab-${t}`).classList.remove('active');
+    });
+    document.getElementById(`panel-${tab}`).classList.remove('hidden');
+    document.getElementById(`tab-${tab}`).classList.add('active');
+}
+
+function filterHistory() {
+    const term = document.getElementById('histSearch').value.toLowerCase();
+    const from = document.getElementById('histDateFrom').value;
+    const to = document.getElementById('histDateTo').value;
+    const type = tsTypeFilter ? tsTypeFilter.getValue() : '';
+    const status = tsStatusFilter ? tsStatusFilter.getValue() : '';
+
+    const filtered = allInvoices.filter(i => {
+        if (term && !i.bill_no.toLowerCase().includes(term) && !(i.client_name||'').toLowerCase().includes(term)) return false;
+        const actualType = i.is_credit_note ? 'cn' : (i.is_debit_note ? 'dn' : (i.doc_type || 'invoice'));
+        if (type && actualType !== type) return false;
+        if (status && (i.status || 'Confirmed') !== status) return false;
+        if (from || to) {
+            let isoDate = '';
+            if (i.invoice_date) {
+                const p = i.invoice_date.split('-');
+                if (p.length === 3) {
+                    const m = { "Jan":"01", "Feb":"02", "Mar":"03", "Apr":"04", "May":"05", "Jun":"06", "Jul":"07", "Aug":"08", "Sep":"09", "Oct":"10", "Nov":"11", "Dec":"12" };
+                    const month = isNaN(parseInt(p[1])) ? m[p[1]] : p[1].padStart(2, '0');
+                    isoDate = `${p[2]}-${month}-${p[0].padStart(2, '0')}`;
+                }
+            } else if (i.timestamp) isoDate = i.timestamp.split('T')[0];
+            if (from && isoDate < from) return false;
+            if (to && isoDate > to) return false;
+        }
+        return true;
+    });
+    renderHistoryTable(filtered);
+}
+
+function typePill(type, cat) {
+    if (cat === 'purchase') return `<span class="pill pill-purchase">${type.toUpperCase()}</span>`;
+    if (type === 'cn') return `<span class="pill pill-red">CN</span>`;
+    if (type === 'dn') return `<span class="pill pill-amber">DN</span>`;
+    return `<span class="pill pill-sale">INV</span>`;
+}
+
+function renderHistoryTable(data) {
+    const tbody = document.getElementById('histTableBody');
+    document.getElementById('histCount').textContent = data.length;
+    if (!data.length) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty" style="padding:36px;">No documents found matching filters.</td></tr>';
+        return;
+    }
+    tbody.innerHTML = data.map(inv => {
+        const cat = inv.doc_category || 'sale';
+        const type = inv.is_credit_note ? 'cn' : (inv.is_debit_note ? 'dn' : (inv.doc_type || 'invoice'));
+        const status = inv.status || 'Confirmed';
+
+        const now = new Date();
+        const created = inv.timestamp ? new Date(inv.timestamp) : null;
+        const canEdit = created && ((now - created) / 3600000) <= 24 && type !== 'cn' && type !== 'dn';
+
+        return `<tr>
+            <td><input type="checkbox" class="hist-cb" value="${inv.bill_no}"></td>
+            <td class="font-bold">
+                ${inv.bill_no} ${typePill(type, cat)}
+            </td>
+            <td class="text-muted">${inv.invoice_date||'-'}</td>
+            <td class="font-bold">${inv.client_name||'-'}</td>
+            <td class="num font-bold">₹${(inv.grand_total||0).toFixed(2)}</td>
+            <td style="text-align:center;">
+                <select onchange="updateStatus('${inv.bill_no}', this.value)" class="status-badge status-${status}" style="cursor:pointer; border:1px solid transparent; padding:3px 10px;">
+                    <option value="Draft" ${status==='Draft'?'selected':''}>Draft</option>
+                    <option value="Confirmed" ${status==='Confirmed'?'selected':''}>Confirmed</option>
+                    <option value="Paid" ${status==='Paid'?'selected':''}>Paid</option>
+                    <option value="Cancelled" ${status==='Cancelled'?'selected':''}>Cancelled</option>
+                </select>
+            </td>
+            <td style="text-align:center;">
+                <div class="flex items-center" style="justify-content:center; gap:6px;">
+                    ${canEdit ? `<a href="/home?edit=${encodeURIComponent(inv.bill_no)}" class="ico-btn ico-edit" title="Edit"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></a>` : ''}
+                    <button onclick="saNavTo('/download-invoice/${encodeURIComponent(inv.bill_no)}','Downloading Invoice…','Generating PDF')" class="ico-btn ico-download" title="Download"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg></button>
+                    <button onclick="emailSingle('${inv.bill_no}')" class="ico-btn ico-mail" title="Email"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg></button>
+                    <button onclick="quickPayment('${inv.bill_no}', '${(inv.client_name||'').replace(/'/g,"\\'")}', ${inv.grand_total||0})" class="ico-btn ico-pay" title="Record Payment"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg></button>
+                    ${cat === 'purchase' && (type === 'po' || type === 'grn') ? `<button onclick="openConvert('${inv.bill_no.replace(/'/g,"\\'")}', '${type}')" class="ico-btn ico-convert" title="Convert to next stage"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg></button>` : ''}
+                    <button onclick="deleteInvoice('${inv.bill_no}')" class="ico-btn ico-delete" title="Delete"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+async function updateStatus(billNo, newStatus) {
+    try {
+        const res = await fetch(`/update-status/${encodeURIComponent(billNo)}`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({status: newStatus}) });
+        const d = await res.json();
+        if (!d.success) sdError('Error: ' + d.error, 'Update Failed');
+        else {
+            const inv = allInvoices.find(i => i.bill_no === billNo);
+            if (inv) inv.status = newStatus;
+            loadDashboardData();
+        }
+    } catch(e) { sdError('Network error', 'Error'); }
+}
+
+async function deleteInvoice(billNo) {
+    const ok = await sdConfirm(`Permanently delete <strong>${billNo}</strong>?<br><span style="font-size:12px;color:#ef4444;">This cannot be undone.</span>`, 'Delete Document', { okLabel: 'Delete', cancelLabel: 'Cancel' });
+    if (!ok) return;
+    sdLoading('Deleting Document…', '');
+    try {
+        const res = await fetch(`/delete-invoice/${encodeURIComponent(billNo)}`, { method: 'DELETE' });
+        const d = await res.json();
+        sdDismiss();
+        if (d.success) {
+            sdSuccess('Deleted', 'Document deleted successfully.');
+            await loadInvoices(); loadDashboardData();
+        } else sdError(d.error, 'Delete Failed');
+    } catch(e) { sdDismiss(); sdError('Network error', 'Error'); }
+}
+
+function selectAll(v) { document.querySelectorAll('.hist-cb').forEach(cb => cb.checked = v); }
+
+async function downloadZip() {
+    const selected = [...document.querySelectorAll('.hist-cb:checked')].map(cb => cb.value);
+    if (!selected.length) { sdAlert('Select at least one document first.', 'Nothing Selected'); return; }
+    sdLoading('Preparing ZIP…', `Bundling ${selected.length} document(s)`);
+    try {
+        const res = await fetch('/download-zip', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({bill_nos: selected})});
+        sdDismiss();
+        if (res.ok) { const blob = await res.blob(); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'Documents_Bundle.zip'; a.click(); }
+        else sdError('Could not generate ZIP.', 'Download Failed');
+    } catch(e) { sdDismiss(); sdError('Network error', 'Error'); }
+}
+
+async function emailSingle(bno) {
+    const ok = await sdConfirm(`Send invoice email for <strong>${bno}</strong>?`, 'Send Email', { okLabel: 'Send', cancelLabel: 'Cancel' });
+    if (!ok) return;
+    sdLoading('Sending Email…', '');
+    try {
+        const res = await fetch(`/email-invoice/${encodeURIComponent(bno)}`, {method:'POST'});
+        const d = await res.json();
+        sdDismiss();
+        if (res.ok) sdSuccess('Email Sent', d.message || 'Invoice emailed successfully.');
+        else sdError(d.error || d.message, 'Email Failed');
+    } catch(e) { sdDismiss(); sdError('Network error', 'Error'); }
+}
+
+async function emailReceipt(pid) {
+    const ok = await sdConfirm('Send payment voucher via email to the client?', 'Send Email', { okLabel: 'Send', cancelLabel: 'Cancel' });
+    if (!ok) return;
+    sdLoading('Sending Email…', '');
+    try {
+        const r = await fetch(`/email-receipt/${encodeURIComponent(pid)}`, {method:'POST'});
+        const d = await r.json();
+        sdDismiss();
+        if (r.ok) sdSuccess('Email Sent', d.message || 'Receipt emailed successfully.');
+        else sdError(d.error || d.message, 'Email Failed');
+    } catch(e) { sdDismiss(); sdError('Network error', 'Error'); }
+}
+
+function openGstrModal() {
+    const months = new Set();
+    allInvoices.filter(i => (i.doc_category === 'sale' || !i.doc_category)).forEach(inv => {
+        const d = inv.invoice_date;
+        if(d) {
+            const p = d.split('-');
+            if(p.length === 3) {
+                const monthName = isNaN(parseInt(p[1])) ? p[1] : new Date(0, parseInt(p[1])-1).toLocaleString('default', { month: 'short' });
+                months.add(`${monthName} ${p[2]}`);
+            }
+        }
+    });
+    let options = [...months].map(m => ({value: m, text: m}));
+    if (options.length === 0) options = [{value: '', text: 'No Sales Data Found'}];
+    if(gstrTs) gstrTs.destroy();
+    gstrTs = new TomSelect('#gstrMonthSelect', { options: options, create: false, placeholder: 'Select Month & Year...' });
+    document.getElementById('gstrModal').classList.remove('hidden');
+}
+
+function closeGstrModal() { document.getElementById('gstrModal').classList.add('hidden'); }
+
+function downloadGstr1() {
+    const m = gstrTs ? gstrTs.getValue() : '';
+    if(!m) { sdAlert('Please select a month to download.', 'Select Month'); return; }
+    closeGstrModal();
+    saNavTo(`/download-gstr1?month_year=${encodeURIComponent(m)}`, 'Downloading GSTR-1…', 'Generating report');
+}
+
+async function loadOutstanding() {
+    try {
+        const res = await fetch('/outstanding?fy=' + encodeURIComponent(globalFy || currentFyString()));
+        const data = await res.json();
+        if (!Array.isArray(data)) return;
+
+        const buckets = {'0-30 days':0, '31-60 days':0, '61-90 days':0, '90+ days':0};
+        data.forEach(o => { buckets[o.age_bucket] = (buckets[o.age_bucket]||0) + o.balance; });
+
+        document.getElementById('age0').textContent = fmt(buckets['0-30 days']);
+        document.getElementById('age30').textContent = fmt(buckets['31-60 days']);
+        document.getElementById('age60').textContent = fmt(buckets['61-90 days']);
+        document.getElementById('age90').textContent = fmt(buckets['90+ days']);
+
+        const ageClass = {'0-30 days':'age-0','31-60 days':'age-30','61-90 days':'age-60','90+ days':'age-90'};
+        document.getElementById('outstandingTableBody').innerHTML = data.map(o => `
+            <tr>
+                <td class="font-bold">${o.bill_no}</td>
+                <td class="text-muted">${o.invoice_date}</td>
+                <td class="font-bold">${o.client_name}</td>
+                <td class="num">₹${fmt(o.grand_total)}</td>
+                <td class="num" style="color:var(--green-dark);">₹${fmt(o.paid)}</td>
+                <td class="num font-bold" style="color:var(--red-dark);">₹${fmt(o.balance)}</td>
+                <td style="text-align:center;" class="font-bold ${ageClass[o.age_bucket]}">${o.days_overdue}d</td>
+                <td style="text-align:center;">
+                    <button onclick="quickPayment('${o.bill_no}','${o.client_name.replace(/'/g,"\\'")}',${o.balance})" class="btn btn-success btn-sm">Receive Pay</button>
+                </td>
+            </tr>`).join('') || '<tr><td colspan="8" class="empty" style="padding:36px;">No outstanding invoices. All clear! 🎉</td></tr>';
+    } catch(e) {}
+}
+
+function initGlobalFy() {
+    if (!globalFy) globalFy = currentFyString();
+    const fySet = new Set([globalFy]);
+    allInvoices.forEach(i => {
+        const f = isoToFy(toIsoDate(i.invoice_date || ''));
+        if (f) fySet.add(f);
+    });
+    const fyOpts = [...fySet].sort((a, b) => b.localeCompare(a));
+
+    if (globalFyTs) {
+        globalFyTs.clear(true);
+        globalFyTs.clearOptions();
+        fyOpts.forEach(f => globalFyTs.addOption({ value: f, text: f }));
+        globalFyTs.setValue(globalFy, true);
+        globalFyTs.refreshOptions(false);
+    } else {
+        const el = document.getElementById('globalFyFilter');
+        if (!el) return;
+        fyOpts.forEach(f => {
+            const opt = document.createElement('option');
+            opt.value = f; opt.textContent = f;
+            if (f === globalFy) opt.selected = true;
+            el.appendChild(opt);
+        });
+        globalFyTs = new TomSelect('#globalFyFilter', {
+            create: false,
+            sortField: { field: 'text', direction: 'desc' },
+            dropdownParent: 'body',
+            onChange: val => { if (val) onGlobalFyChange(val); },
+        });
+    }
+}
+
+async function onGlobalFyChange(fy) {
+    globalFy = fy;
+    const range = fyDateRange(fy);
+    if (range) {
+        const todayIso = new Date().toISOString().split('T')[0];
+        document.getElementById('histDateFrom').value = range.from;
+        document.getElementById('histDateTo').value = fy === currentFyString() ? todayIso : range.to;
+        filterHistory();
+    }
+    await Promise.all([loadDashboardData(), loadOutstanding()]);
+}
+
+function renderPaymentsTable(data) {
+    const theadRow = document.querySelector('#paymentsTableBody').previousElementSibling.querySelector('tr');
+    if (theadRow && theadRow.children.length === 4) {
+        const th = document.createElement('th');
+        th.style.textAlign = 'center';
+        th.textContent = 'Actions';
+        theadRow.appendChild(th);
+    }
+    document.getElementById('paymentsTableBody').innerHTML = data.slice(0,50).map(p => `
+        <tr>
+            <td class="text-muted" style="white-space:nowrap;">${p.payment_date||'-'}</td>
+            <td class="font-bold">${p.party_name}</td>
+            <td class="num font-bold">₹${fmt(p.amount)}</td>
+            <td style="text-align:center;">
+                <span class="pill ${p.payment_type==='receipt'?'pill-green':'pill-purchase'}">${p.payment_type==='receipt'?'Receipt':'Payment'}</span>
+            </td>
+            <td style="text-align:center;">
+                <div class="flex items-center" style="justify-content:center; gap:6px;">
+                    <button onclick="editPayment('${p.payment_id}')" class="ico-btn ico-edit" title="Edit"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>
+                    <button onclick="saNavTo('/download-receipt/${encodeURIComponent(p.payment_id)}','Downloading Receipt…','Generating PDF')" class="ico-btn ico-download" title="Download PDF"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg></button>
+                    <button onclick="emailReceipt('${p.payment_id}')" class="ico-btn ico-mail" title="Email"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg></button>
+                    <button onclick="deletePayment('${p.payment_id}')" class="ico-btn ico-delete" title="Delete"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
+                </div>
+            </td>
+        </tr>`).join('') || '<tr><td colspan="5" class="empty" style="padding:36px;">No payments recorded.</td></tr>';
+}
+
+function quickPayment(billNo, partyName, balance) {
+    switchTab('payments');
+    if (payPartyTs) {
+        payPartyTs.addOption({value: partyName, text: partyName});
+        payPartyTs.setValue(partyName);
+    }
+    document.getElementById('pay_ref').value = billNo;
+    document.getElementById('pay_amount').value = balance.toFixed(2);
+    if(tsPayType) tsPayType.setValue('receipt');
+    document.querySelector('#panel-payments').scrollIntoView({behavior:'smooth'});
+}
+
+async function submitPayment() {
+    const party = payPartyTs ? payPartyTs.getValue() : '';
+    const amount = parseFloat(document.getElementById('pay_amount').value);
+    if (!party || !amount) { sdAlert('Party name and amount are required.', 'Required'); return; }
+
+    const rawDate = document.getElementById('pay_date').value;
+    const formattedDate = formatToDDMonYYYY(rawDate);
+
+    const editId = document.getElementById('edit_payment_id').value;
+    const editTs = document.getElementById('edit_payment_ts').value;
+
+    const data = {
+        party_name: party,
+        amount: amount,
+        payment_type: tsPayType ? tsPayType.getValue() : 'receipt',
+        mode: tsPayMode ? tsPayMode.getValue() : 'Cash',
+        ref_invoice: document.getElementById('pay_ref').value.trim(),
+        payment_date: formattedDate,
+        notes: document.getElementById('pay_notes').value.trim()
+    };
+
+    if (editId) {
+        data.payment_id = editId;
+        data.timestamp = editTs;
+    }
+
+    sdLoading('Saving Payment…', '');
+    try {
+        const res = await fetch('/payments', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data)});
+        const d = await res.json();
+        sdDismiss();
+        if (d.success) {
+            sdSuccess('Payment Saved', editId ? 'Payment entry updated.' : 'Payment entry recorded.');
+            if (payPartyTs) payPartyTs.clear();
+            ['pay_amount','pay_ref','pay_notes','edit_payment_id','edit_payment_ts'].forEach(id => document.getElementById(id).value = '');
+            document.getElementById('paymentSubmitBtn').textContent = "Save Payment Entry";
+            document.getElementById('paymentCancelBtn').style.display = 'none';
+            setDefaultDates();
+            await loadPayments(); await loadInvoices(); loadDashboardData();
+        } else sdError(d.error, 'Save Failed');
+    } catch(e) { sdDismiss(); sdError('Network error', 'Error'); }
+}
+
+function editPayment(pid) {
+    const p = allPayments.find(x => x.payment_id === pid);
+    if(!p) return;
+    document.getElementById('edit_payment_id').value = p.payment_id;
+    document.getElementById('edit_payment_ts').value = p.timestamp || '';
+    if (payPartyTs) {
+        payPartyTs.addOption({value: p.party_name, text: p.party_name});
+        payPartyTs.setValue(p.party_name);
+    }
+    document.getElementById('pay_amount').value = p.amount;
+    if(tsPayType) tsPayType.setValue(p.payment_type || 'receipt');
+    if(tsPayMode) tsPayMode.setValue(p.mode || 'Cash');
+    document.getElementById('pay_ref').value = p.ref_invoice || '';
+    document.getElementById('pay_notes').value = p.notes || '';
+    let dVal = p.payment_date;
+    if (dVal && dVal.includes('-')) {
+        const parts = dVal.split('-');
+        if (parts.length === 3 && parts[1].length === 3) {
+            const m = {"Jan":"01","Feb":"02","Mar":"03","Apr":"04","May":"05","Jun":"06","Jul":"07","Aug":"08","Sep":"09","Oct":"10","Nov":"11","Dec":"12"};
+            dVal = `${parts[2]}-${m[parts[1]]}-${parts[0]}`;
+        }
+    }
+    document.getElementById('pay_date').value = dVal || '';
+    document.getElementById('paymentSubmitBtn').textContent = "Update Payment Entry";
+    document.getElementById('paymentCancelBtn').style.display = '';
+    document.querySelector('#panel-payments').scrollIntoView({behavior:'smooth'});
+}
+
+function cancelEditPayment() {
+    if (payPartyTs) payPartyTs.clear();
+    ['pay_amount','pay_ref','pay_notes','edit_payment_id','edit_payment_ts'].forEach(id => document.getElementById(id).value = '');
+    if (tsPayType) tsPayType.setValue('receipt');
+    if (tsPayMode) tsPayMode.setValue('Cash');
+    document.getElementById('paymentSubmitBtn').textContent = "Save Payment Entry";
+    document.getElementById('paymentCancelBtn').style.display = 'none';
+    setDefaultDates();
+}
+
+async function deletePayment(pid) {
+    const ok = await sdConfirm('Permanently delete this payment voucher?<br><span style="font-size:12px;color:#ef4444;">This cannot be undone.</span>', 'Delete Payment', { okLabel: 'Delete', cancelLabel: 'Cancel' });
+    if (!ok) return;
+    sdLoading('Deleting…', '');
+    try {
+        const res = await fetch(`/delete-payment/${encodeURIComponent(pid)}`, {method:'DELETE'});
+        const d = await res.json();
+        sdDismiss();
+        if(d.success) {
+            sdSuccess('Deleted', 'Payment voucher deleted.');
+            await loadPayments(); await loadInvoices(); loadDashboardData();
+        } else sdError(d.error, 'Delete Failed');
+    } catch(e) { sdDismiss(); sdError('Network error', 'Error'); }
+}
+
+async function loadLedger(party, fy) {
+    if (!party) return;
+    const fySelect = document.getElementById('ledgerFy');
+    const useFy = fy || fySelect.value || '';
+    sdLoading('Loading Ledger…', '');
+    try {
+        const url = `/ledger/${encodeURIComponent(party)}${useFy ? '?fy=' + encodeURIComponent(useFy) : ''}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        sdDismiss();
+        if (data.error) { sdError(data.error, 'Ledger Error'); return; }
+
+        // Update FY TomSelect with available years from server
+        if (ledgerFyTs) {
+            ledgerFyTs.clear(true);
+            ledgerFyTs.clearOptions();
+            (data.available_fys || []).forEach(f => ledgerFyTs.addOption({ value: f, text: f }));
+            ledgerFyTs.setValue(data.fy || '', true);
+            ledgerFyTs.refreshOptions(false);
+        } else {
+            while (fySelect.firstChild) fySelect.removeChild(fySelect.firstChild);
+            (data.available_fys || []).forEach(f => {
+                const opt = document.createElement('option');
+                opt.value = f; opt.textContent = f;
+                if (f === data.fy) opt.selected = true;
+                fySelect.appendChild(opt);
+            });
+            if (!fySelect.value && data.fy) fySelect.value = data.fy;
+        }
+
+        let totalDr = 0, totalCr = 0;
+        const tbody = document.getElementById('ledgerTableBody');
+        tbody.innerHTML = (data.entries || []).map(e => {
+            totalDr += e.debit;
+            totalCr += e.credit;
+            const balColor = e.balance > 0 ? 'color:var(--red-dark)' : e.balance < 0 ? 'color:var(--green-dark)' : 'color:var(--ink-3)';
+            return `<tr>
+                <td class="text-muted">${e.date}</td>
+                <td class="font-bold" style="font-family:'JetBrains Mono',monospace; font-size:12px;">${e.doc_no}</td>
+                <td>${e.narration}</td>
+                <td class="num" style="${e.debit>0?'color:var(--red-dark); font-weight:600;':'color:var(--ink-4);'}">${e.debit>0?'₹'+fmt(e.debit):'-'}</td>
+                <td class="num" style="${e.credit>0?'color:var(--green-dark); font-weight:600;':'color:var(--ink-4);'}">${e.credit>0?'₹'+fmt(e.credit):'-'}</td>
+                <td class="num font-bold" style="${balColor}">₹${fmt(Math.abs(e.balance))} ${e.balance>0?'Dr':e.balance<0?'Cr':''}</td>
+            </tr>`;
+        }).join('') || '<tr><td colspan="6" class="empty" style="padding:30px 20px;">No transactions found for FY ' + (data.fy || '') + '.</td></tr>';
+
+        document.getElementById('ledger_dr').textContent = fmt(totalDr);
+        document.getElementById('ledger_cr').textContent = fmt(totalCr);
+        const closing = data.closing_balance;
+        const bt = document.getElementById('ledger_balance_text');
+        bt.textContent = `₹${fmt(Math.abs(closing))} ${closing>0?'Dr':closing<0?'Cr':''}`;
+        bt.style.color = closing > 0 ? 'var(--red-dark)' : closing < 0 ? 'var(--green-dark)' : 'var(--ink)';
+        const bc = document.getElementById('ledger_balance_card');
+        bc.classList.remove('success', 'danger', 'info', 'warn');
+        bc.classList.add(closing > 0 ? 'danger' : 'success');
+        document.getElementById('ledgerSummary').classList.remove('hidden');
+        document.getElementById('btnDownloadLedger').classList.remove('hidden');
+    } catch(e) { sdDismiss(); sdError('Error loading ledger', 'Error'); }
+}
+
+function onLedgerFyChange(fy) {
+    const party = ledgerTs ? ledgerTs.getValue() : '';
+    if (party) loadLedger(party, fy);
+}
+
+function downloadLedgerPDF() {
+    const party = ledgerTs ? ledgerTs.getValue() : '';
+    if(!party) { sdAlert('Select a party first.', 'No Party Selected'); return; }
+    const fy = ledgerFyTs ? ledgerFyTs.getValue() : (document.getElementById('ledgerFy').value || '');
+    const fyParam = fy ? '?fy=' + encodeURIComponent(fy) : '';
+    saNavTo(`/download-ledger/${encodeURIComponent(party)}${fyParam}`, 'Downloading Ledger…', 'Generating PDF');
+}
+
+function fmt(n) {
+    if (n === undefined || n === null) return '--';
+    return parseFloat(n).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+// ---------------- Workflow conversion (PO -> GRN -> Bill) ----------------
+
+let convertState = null;
+
+async function openConvert(billNo, fromType) {
+    try {
+        const r = await fetch(`/v2/doc/${encodeURIComponent(billNo)}/pending`).then(r => r.json());
+        if (r.error) { sdError(r.error, 'Error'); return; }
+        if (r.status === 'Closed') { sdAlert('All lines already fully converted.', 'Fully Converted'); return; }
+        convertState = { bill_no: billNo, from_type: fromType, pending: r };
+        document.getElementById('convTitle').textContent = `Convert ${fromType.toUpperCase()} ${billNo}`;
+        document.getElementById('convParty').textContent = r.client_name || '-';
+        document.getElementById('convStatus').textContent = r.status;
+        const nextOptions = fromType === 'po' ? ['grn', 'bill'] : ['bill'];
+        document.getElementById('convTarget').innerHTML = nextOptions.map(t =>
+            `<option value="${t}">${t.toUpperCase()}</option>`).join('');
+        const rows = r.lines.map((l, i) => `
+            <tr>
+              <td>${l.particular}</td>
+              <td class="num">${l.qty_ordered}</td>
+              <td class="num text-muted">${l.qty_carried}</td>
+              <td class="num font-bold" style="color:var(--accent-sale);">${l.qty_pending}</td>
+              <td><input type="number" step="0.001" min="0" max="${l.qty_pending}" value="${l.qty_pending}" data-idx="${l.index}" class="conv-qty" style="max-width:100px; text-align:right;"></td>
+            </tr>`).join('');
+        document.getElementById('convBody').innerHTML = rows;
+        document.getElementById('convModal').classList.remove('hidden');
+    } catch (e) { sdError('Failed to load pending data: ' + e.message, 'Error'); }
+}
+
+function closeConvert() {
+    document.getElementById('convModal').classList.add('hidden');
+    convertState = null;
+}
+
+async function doConvert() {
+    if (!convertState) return;
+    const toType = document.getElementById('convTarget').value;
+    sdLoading('Loading…', 'Fetching document data');
+    const r = await fetch(`/v2/doc/${encodeURIComponent(convertState.bill_no)}/prefill/${toType}`).then(r => r.json());
+    if (r.error) { sdDismiss(); sdError(r.error, 'Error'); return; }
+    const body = r.prefill;
+    const picked = Array.from(document.querySelectorAll('.conv-qty')).map(inp => ({
+        idx: parseInt(inp.dataset.idx, 10),
+        qty: parseFloat(inp.value) || 0,
+    })).filter(x => x.qty > 0);
+    if (!picked.length) { sdDismiss(); sdAlert('Enter at least one qty to convert.', 'Required'); return; }
+    const idxToPos = {};
+    body._parent_line_indexes.forEach((idx, i) => { idxToPos[idx] = i; });
+    const newParticulars = [], newQtys = [], newRates = [], newTax = [], newHsns = [], newAmts = [], newIdxs = [], newPq = [];
+    for (const p of picked) {
+        const pos = idxToPos[p.idx];
+        if (pos === undefined) continue;
+        newParticulars.push(body.particulars[pos]);
+        newQtys.push(p.qty);
+        newRates.push(body.rates[pos]);
+        newTax.push(body.taxrates[pos]);
+        newHsns.push(body.hsns[pos]);
+        const rate = parseFloat(body.rates[pos]) || 0;
+        const tr = parseFloat(body.taxrates[pos]) || 0;
+        newAmts.push(Math.round(rate * p.qty * (1 + tr / 100) * 100) / 100);
+        newIdxs.push(p.idx);
+        newPq.push(p.qty);
+    }
+    body.particulars = newParticulars; body.qtys = newQtys; body.rates = newRates;
+    body.taxrates = newTax; body.hsns = newHsns; body.amounts = newAmts;
+    body._parent_line_indexes = newIdxs; body._parent_line_qtys = newPq;
+    body.auto_generate = true;
+    sdStep(`Creating ${toType.toUpperCase()}…`);
+    const resp = await fetch('/generate-invoice', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+    if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ error: resp.statusText }));
+        sdDismiss(); sdError('Conversion failed: ' + (err.error || resp.statusText), 'Conversion Failed'); return;
+    }
+    const parentBillNo = convertState.bill_no;
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url;
+    a.download = `${toType.toUpperCase()}_from_${parentBillNo.replace(/\//g, '_')}.pdf`;
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    closeConvert();
+    sdSuccess('Conversion Complete', `Created ${toType.toUpperCase()} from ${parentBillNo}. PDF downloaded.`);
+    await loadInvoices(); loadDashboardData();
+}
+
+async function loadOpenWorkflow() {
+    try {
+        const r = await fetch('/v2/workflow/open').then(r => r.json());
+        if (r.error) return;
+        const el = document.getElementById('wfBadge');
+        if (!el) return;
+        const total = (r.po.open + r.po.partial) + (r.grn.open + r.grn.partial);
+        if (total === 0) { el.classList.add('hidden'); return; }
+        el.classList.remove('hidden');
+        el.textContent = `${r.po.open + r.po.partial} PO · ${r.grn.open + r.grn.partial} GRN pending`;
+    } catch {}
+}
+
+document.addEventListener('DOMContentLoaded', () => setTimeout(loadOpenWorkflow, 500));
+</script>
+
+{% include "_shell_end.html" %}
+</body>
+</html>

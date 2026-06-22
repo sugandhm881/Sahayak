@@ -1,0 +1,2071 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>New Document — {{ profile.get('company_name', 'Sahayak ERP') }}</title>
+{% include "_shell_head.html" %}
+<style>
+  /* Page-specific component overlays on top of app.css design system */
+  .card-title .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+  .mode-pill-group { display: flex; gap: 5px; background: var(--surface-2); padding: 4px; border-radius: 10px; border: 1px solid var(--border); }
+  .mode-pill { padding: 7px 18px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; transition: var(--transition); color: var(--ink-3); border: 1px solid transparent; user-select: none; }
+  .mode-pill.active-sale { background: #fff7ed; color: #c2410c; border-color: #fed7aa; box-shadow: 0 1px 4px rgba(249,115,22,0.2); }
+  .mode-pill.active-purchase { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; box-shadow: 0 1px 4px rgba(59,130,246,0.2); }
+
+  .control-bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px; padding: 16px 20px; background: var(--surface-2); border-bottom: 1px solid var(--border); }
+  .ctrl-group { display: flex; flex-direction: column; gap: 5px; }
+  .ctrl-label { font-size: 10px; font-weight: 700; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 2px;}
+
+  input, textarea { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; color: var(--ink); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 9px 12px; transition: var(--transition); outline: none; width: 100%; }
+  input:focus, textarea:focus { border-color: #93c5fd; box-shadow: 0 0 0 3px rgba(59,130,246,0.12); }
+  input[readonly] { background: var(--surface-2); color: var(--ink-3); cursor: not-allowed; }
+
+  /* ═══ TOM SELECT GLOBAL STYLING & WIDTH FIXES ═══ */
+  .ts-wrapper .ts-control { border-radius: var(--radius-sm) !important; border: 1px solid var(--border) !important; padding: 8.5px 12px !important; background: var(--surface) !important; box-shadow: none !important; font-size: 13px !important; font-family: 'Plus Jakarta Sans', sans-serif !important; min-height: 38px !important; transition: var(--transition); }
+  .ts-wrapper.focus .ts-control { border-color: #93c5fd !important; box-shadow: 0 0 0 3px rgba(59,130,246,0.12) !important; }
+  .ts-dropdown { border-radius: var(--radius-sm) !important; box-shadow: var(--shadow-lg) !important; font-family: 'Plus Jakarta Sans', sans-serif !important; margin-top: 4px !important; border: 1px solid var(--border) !important; z-index: 9999 !important; }
+  .ts-dropdown .ts-dropdown-content { max-height: 240px !important; } 
+  .ts-dropdown .option { padding: 10px 14px !important; font-size: 13px !important; border-bottom: 1px solid var(--surface-2); transition: background 0.15s; cursor: pointer; }
+  .ts-dropdown .option.active, .ts-dropdown .option:hover { background: var(--surface-2) !important; color: var(--ink) !important; font-weight: 600; }
+  
+  /* Fix text truncation to prevent dropdown overlapping the caret */
+  .ts-wrapper.single .ts-control { padding-right: 2.5rem !important; }
+  .ts-wrapper.single .ts-control .item { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; display: block; }
+  .ts-wrapper.disabled .ts-control { background: var(--surface-2) !important; opacity: 0.7; cursor: not-allowed; }
+
+  /* Autocomplete list styling for Emails */
+  .autocomplete-list { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #d1d5db; max-height: 200px; overflow-y: auto; z-index: 50; border-radius: var(--radius-sm); box-shadow: var(--shadow-lg); margin-top: 4px; }
+  .autocomplete-item { padding: 8px 12px; cursor: pointer; transition: background 0.15s; font-size: 13px; color: var(--ink-2); }
+  .autocomplete-item:hover, .autocomplete-item.focused { background-color: var(--surface-2); color: var(--ink); }
+
+  .toggle-wrap { display: flex; align-items: center; gap: 8px; background: #fffbeb; border: 1px solid #fde68a; border-radius: var(--radius-sm); padding: 8.5px 12px; cursor: pointer; height: 38px; }
+  .toggle-wrap input { width: 15px; height: 15px; accent-color: #f97316; cursor: pointer; flex-shrink: 0; margin: 0; }
+
+  .party-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 20px; }
+  @media(max-width:768px) { .party-grid { grid-template-columns: 1fr; } }
+  .party-block { border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden; }
+  .party-block-header { padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
+  .party-block-title { font-size: 12px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
+  .party-block-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .bill-to-block { border-color: #bfdbfe; }
+  .bill-to-block .party-block-header { background: #eff6ff; }
+  .bill-to-block .party-block-title { color: #1d4ed8; }
+  .ship-to-block .party-block-header { background: var(--surface-2); }
+  .ship-to-block .party-block-title { color: var(--ink-2); }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .field-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .field-label { font-size: 10px; font-weight: 700; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 4px; }
+
+  .items-section { padding: 20px; }
+  .items-table-wrap { overflow-x: auto; border-radius: var(--radius-sm); border: 1px solid var(--border); }
+  table.items-table { width: 100%; min-width: 880px; border-collapse: collapse; }
+  table.items-table thead tr { background: var(--ink); color: white; }
+  table.items-table.purchase-mode thead tr { background: #1e40af; }
+  table.items-table th { padding: 10px 12px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px; white-space: nowrap; }
+  table.items-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  table.items-table tr:last-child td { border-bottom: none; }
+  table.items-table tbody tr:hover { background: var(--surface-2); }
+  table.items-table td input { padding: 7px 8px; font-size: 12.5px; border-radius: 6px; }
+  table.items-table td .ts-wrapper .ts-control { min-height: 32px !important; padding: 6px 10px !important; font-size: 12.5px !important; }
+  
+  .amount-cell { background: var(--surface-2); }
+  .amount-cell input { background: transparent; border: none; font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--ink); width: 100%; }
+
+  .stock-chip { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 99px; letter-spacing: 0.3px; margin-top: 3px; }
+  .stock-chip.in  { background: var(--green-light); color: #065f46; }
+  .stock-chip.out { background: var(--red-light); color: #991b1b; }
+  .stock-chip.chk { background: var(--surface-3); color: var(--ink-3); }
+  .stock-chip.none { background: #fff7ed; color: #9a3412; }
+
+  .add-row-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: var(--radius-sm); background: var(--surface-2); border: 1px dashed var(--border-2); color: var(--ink-2); font-size: 13px; font-weight: 600; cursor: pointer; transition: var(--transition); margin-top: 10px; font-family: inherit; }
+  .add-row-btn:hover { background: var(--surface-3); border-color: #93c5fd; color: #2563eb; }
+
+  .row-remove { width: 28px; height: 28px; border-radius: 6px; background: var(--red-light); color: var(--red); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; transition: var(--transition); }
+  .row-remove:hover { background: #fee2e2; }
+
+  .totals-panel { background: var(--surface-2); border-radius: var(--radius); border: 1px solid var(--border); padding: 16px 20px; }
+  .totals-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-size: 13px; color: var(--ink-2); border-bottom: 1px dashed var(--border); }
+  .totals-row:last-child { border-bottom: none; }
+  .totals-row.grand { margin-top: 8px; padding-top: 12px; font-size: 20px; font-weight: 800; color: var(--ink); }
+
+  .generate-btn { width: 100%; padding: 16px 32px; border-radius: var(--radius); font-size: 16px; font-weight: 800; cursor: pointer; transition: var(--transition); border: none; display: flex; align-items: center; justify-content: center; gap: 10px; font-family: inherit; letter-spacing: -0.2px; }
+  .generate-btn.sale { background: linear-gradient(135deg, #f97316, #ea580c, #dc2626); color: white; box-shadow: 0 4px 20px rgba(249,115,22,0.4); }
+  .generate-btn.sale:hover { box-shadow: 0 8px 32px rgba(249,115,22,0.5); transform: translateY(-2px); }
+  .generate-btn.purchase { background: linear-gradient(135deg, #3b82f6, #2563eb, #1d4ed8); color: white; box-shadow: 0 4px 20px rgba(59,130,246,0.4); }
+  .generate-btn.purchase:hover { box-shadow: 0 8px 32px rgba(59,130,246,0.5); transform: translateY(-2px); }
+  .generate-btn.edit { background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; box-shadow: 0 4px 20px rgba(139,92,246,0.4); }
+  .generate-btn:disabled { opacity: 0.7; transform: none !important; cursor: not-allowed; }
+
+  .edit-banner { background: linear-gradient(90deg, #f5f3ff, #ede9fe); border: 1px solid #c4b5fd; border-radius: var(--radius-sm); padding: 10px 16px; display: flex; align-items: center; gap: 10px; font-size: 13px; color: #5b21b6; font-weight: 600; margin: 12px 20px 0; }
+  .edit-banner svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+  .manual-block { display: none; background: #fefce8; border: 1px solid #fef08a; border-radius: var(--radius-sm); padding: 14px 16px; grid-template-columns: 1fr 1fr; gap: 12px; margin: 12px 20px 0; }
+  .manual-block.visible { display: grid; }
+
+  .history-section { padding: 20px; }
+  .search-wrap { position: relative; width: 100%; flex: 1; min-width: 220px;}
+  .search-wrap svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; color: var(--ink-3); pointer-events: none; z-index: 2; }
+  .search-wrap input { padding-left: 32px; width: 100%; margin:0; }
+
+  table.hist-table { width: 100%; border-collapse: collapse; min-width: 700px; }
+  table.hist-table th { padding: 10px 12px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--ink-3); background: var(--surface-2); border-bottom: 1px solid var(--border); white-space: nowrap; position: sticky; top: 0; z-index: 1; }
+  table.hist-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--ink-2); }
+  table.hist-table tbody tr:hover { background: #f8f9fd; }
+  table.hist-table tbody tr:last-child td { border-bottom: none; }
+
+  .doc-badge { display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 6px; letter-spacing: 0.5px; border-width: 1px; border-style: solid; }
+  .badge-inv  { background: #ecfdf5; color: #065f46; border-color: #a7f3d0; }
+  .badge-cn   { background: #fef2f2; color: #991b1b; border-color: #fca5a5; }
+  .badge-po   { background: #eff6ff; color: #1e40af; border-color: #bfdbfe; }
+  .badge-grn  { background: #eff6ff; color: #1e40af; border-color: #bfdbfe; }
+  .badge-bill { background: #f5f3ff; color: #5b21b6; border-color: #c4b5fd; }
+  .badge-dn   { background: #fff7ed; color: #9a3412; border-color: #fed7aa; }
+
+  .status-badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 10px; font-weight: 700; letter-spacing: 0.4px; }
+  .status-Draft     { background: #f3f4f6; color: #6b7280; }
+  .status-Confirmed { background: #eff6ff; color: #2563eb; }
+  .status-Paid      { background: #ecfdf5; color: #059669; }
+  .status-Cancelled { background: #fef2f2; color: #dc2626; }
+
+  .act-btn { padding: 5px; border-radius: 6px; transition: var(--transition); background: transparent; border: none; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+  .act-btn:hover { background: var(--surface-3); }
+  .act-btn svg { width: 16px; height: 16px; }
+
+  /* ship-spin-ring kept for backward compat if referenced anywhere */
+  .ship-spin-ring { position:absolute; inset:0; border-radius:50%; border:3px solid #e5e7eb; border-top-color:#6d28d9; border-right-color:#4f46e5; animation:sahayakSpin 0.75s linear infinite; }
+
+  .hist-checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: #3b82f6; }
+  input.mono { font-family: 'JetBrains Mono', monospace; letter-spacing: 0.5px; }
+  .ship-to-section.hidden-service { display: none !important; }
+  .rate-col-header { white-space: nowrap; }
+
+  /* ═══ MOBILE RESPONSIVE CSS ═══ */
+  @media (max-width: 768px) {
+    .app-shell { padding: 12px 10px 40px; }
+    .topbar { flex-direction: column; align-items: stretch; padding: 16px; gap: 16px; }
+    .topbar-brand { justify-content: center; }
+    .topbar-actions { justify-content: center; width: 100%; }
+    .btn { flex: 1; justify-content: center; }
+    .dropdown { flex: 1; display: flex; }
+    .dropdown button { width: 100%; }
+    .dropdown-menu { width: 100%; }
+    
+    .control-bar { flex-direction: column; align-items: stretch; gap: 12px; }
+    .control-bar .ctrl-group { width: 100%; margin-left: 0 !important; }
+    .control-bar .ctrl-group select, 
+    .control-bar .ctrl-group .ts-wrapper { width: 100%; min-width: 0 !important; }
+    .mode-pill-group { width: 100%; }
+    .mode-pill { flex: 1; text-align: center; }
+
+    .party-grid { grid-template-columns: 1fr; padding: 12px; }
+    .field-row, .field-row-3 { grid-template-columns: 1fr; }
+    .manual-block { grid-template-columns: 1fr; }
+    
+    .items-section { padding: 12px; }
+    .totals-panel-wrapper { max-width: 100% !important; width: 100%; margin-top: 16px;}
+    
+    .history-section { padding: 12px; }
+    .history-filter-row { flex-direction: column; align-items: stretch; }
+    .history-filter-row select, .history-filter-row .ts-wrapper { width: 100% !important; min-width: 0 !important; }
+  }
+</style>
+</head>
+
+<body>
+{% set _module = module or 'all' %}
+{% if _module == 'sale' %}
+  {% set active_nav = 'sales' %}
+  {% set page_title = 'New Sale Document' %}
+  {% set page_sub = 'Create a Tax Invoice or Credit Note' %}
+{% elif _module == 'purchase' %}
+  {% set active_nav = 'purchase' %}
+  {% set page_title = 'New Purchase Document' %}
+  {% set page_sub = 'Create a Purchase Order, GRN, Bill or Debit Note' %}
+{% else %}
+  {% set active_nav = 'new_doc' %}
+  {% set page_title = 'New Document' %}
+  {% set page_sub = 'Create invoices, purchase orders, GRNs, bills and notes' %}
+{% endif %}
+{% include "_shell_start.html" %}
+
+{% if _module == 'all' %}
+<div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:14px; flex-wrap:wrap;">
+  <a href="/download-report" data-no-load onclick="saNavTo('/download-report','Downloading Report…','Generating Excel'); return false;" class="btn btn-ghost btn-sm">
+    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+    Standard Excel
+  </a>
+  <a href="/download-gstr1" data-no-load onclick="saNavTo('/download-gstr1','Exporting GSTR-1…','Generating Excel'); return false;" class="btn btn-ghost btn-sm" style="color:#059669; font-weight:700;">
+    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+    GSTR-1 Export
+  </a>
+</div>
+{% endif %}
+
+<div class="card">
+
+  <div class="control-bar">
+    {% if _module == 'all' %}
+    <div class="ctrl-group">
+      <span class="ctrl-label">Mode</span>
+      <div class="mode-pill-group">
+        {% if current_user.has_permission('sale') %}
+        <label class="mode-pill active-sale" id="pillSale">
+          <input type="radio" name="appMode" value="sale" checked onchange="handleModeChange()" style="display:none;">
+          🧾 Sale
+        </label>
+        {% endif %}
+        {% if current_user.has_permission('purchase') %}
+        <label class="mode-pill" id="pillPurchase">
+          <input type="radio" name="appMode" value="purchase" onchange="handleModeChange()" style="display:none;">
+          📦 Purchase
+        </label>
+        {% endif %}
+      </div>
+    </div>
+    {% else %}
+    <input type="radio" name="appMode" value="{{ _module }}" checked style="display:none;">
+    {% endif %}
+
+    <div class="ctrl-group hidden md:block">
+      <span class="ctrl-label" style="visibility:hidden;">Tax</span> 
+      <label class="toggle-wrap">
+        <input type="checkbox" id="is_non_gst">
+        <span style="font-size:13px;font-weight:700;color:#92400e;">Non-GST Bill</span>
+        <span style="font-size:11px;color:#a16207;">(0% Tax)</span>
+      </label>
+    </div>
+    <div class="ctrl-group md:hidden">
+      <label class="toggle-wrap w-full">
+        <input type="checkbox" id="is_non_gst_mobile" onchange="document.getElementById('is_non_gst').checked = this.checked; calculateTotals();">
+        <span style="font-size:13px;font-weight:700;color:#92400e;">Non-GST Bill</span>
+        <span style="font-size:11px;color:#a16207;">(0% Tax)</span>
+      </label>
+    </div>
+
+    <div class="ctrl-group" id="tds_wrapper" style="display:none;">
+      <span class="ctrl-label">TDS Applicable</span>
+      <select id="tds_applicable">
+        <option value="no">No</option>
+        <option value="yes">Yes (Deduct 1%)</option>
+      </select>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">Document Type</span>
+      <select id="doc_type_select" style="min-width: 280px;"></select>
+    </div>
+
+    <div class="ctrl-group" id="reference_wrapper" style="display:none;">
+      <span class="ctrl-label" id="reference_label">Ref Doc No</span>
+      <input type="text" id="reference_doc_no" placeholder="Required" style="width:100%; max-width:180px;">
+    </div>
+
+    <div class="ctrl-group" style="margin-left:auto;">
+      <span class="ctrl-label">Numbering</span>
+      <select id="generation_type" style="min-width: 220px;">
+        <option value="auto">Auto-generate Number</option>
+        <option value="manual">Enter Manually</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="editBanner" class="edit-banner" style="display:none;">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+    Editing document — <strong id="editBannerDocNo" style="margin-left:4px;"></strong>
+    <button onclick="resetForm()" style="margin-left:auto;padding:4px 12px;border-radius:6px;background:#ede9fe;border:1px solid #c4b5fd;color:#5b21b6;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">✕ Cancel</button>
+  </div>
+
+  <div id="manual_details" class="manual-block">
+    <div>
+      <div class="field-label">Manual Doc Number</div>
+      <input type="text" id="manual_bill_no" placeholder="e.g., {{ profile.get('invoice_prefix', 'SMT') }}/2025-26/0001">
+    </div>
+    <div>
+      <div class="field-label">Manual Date</div>
+      <input type="date" id="manual_invoice_date">
+    </div>
+  </div>
+
+  <div class="party-grid">
+    <div class="party-block bill-to-block">
+      <div class="party-block-header">
+        <span class="party-block-title" id="billToHeader">📋 Bill To (Client)</span>
+      </div>
+      <div class="party-block-body">
+        <div>
+          <div class="field-label">Search Party</div>
+          <select id="clientSelect" placeholder="Search or type party name..."></select>
+        </div>
+        <div>
+          <div class="field-label">Party Name *</div>
+          <input type="text" id="client_name" placeholder="Full name" style="font-weight:700;">
+        </div>
+        <div class="field-row">
+          <div><div class="field-label">Mobile</div><input type="text" id="client_mobile" placeholder="Mobile number"></div>
+          <div><div class="field-label">Email</div><input type="email" id="client_email" placeholder="email@domain.com" autocomplete="off"></div>
+        </div>
+        <div><div class="field-label">Address Line 1</div><input type="text" id="client_address1" placeholder="Street / Building"></div>
+        <div><div class="field-label">Address Line 2</div><input type="text" id="client_address2" placeholder="Area / Landmark"></div>
+        <div class="field-row-3">
+          <div><div class="field-label">Pincode</div><input type="text" id="client_pincode" placeholder="6 digits" maxlength="6" oninput="fetchPincodeData('client')"></div>
+          <div><div class="field-label">District</div><input type="text" id="client_district" placeholder="Auto-fill" readonly></div>
+          <div><div class="field-label">State</div><select id="client_state" style="min-width: 140px;"></select></div>
+        </div>
+        <div><div class="field-label">GSTIN</div><input type="text" id="client_gstin" placeholder="07AABCS1429B1ZB" class="mono" style="text-transform:uppercase;"></div>
+      </div>
+    </div>
+
+    <div class="party-block ship-to-block ship-to-section" id="shipToBlock">
+      <div class="party-block-header">
+        <span class="party-block-title" id="shipToHeader">🚚 Ship To</span>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;font-weight:600;color:var(--ink-3);">
+          <input type="checkbox" id="same_as_bill" onchange="toggleShipTo()" style="width:14px;height:14px;cursor:pointer;">
+          Same as Bill To
+        </label>
+      </div>
+      <div id="ship_to_container" class="party-block-body">
+        <div><div class="field-label">Receiver Name</div><input type="text" id="shipto_name" placeholder="Receiver name"></div>
+        <div class="field-row">
+          <div><div class="field-label">Mobile</div><input type="text" id="shipto_mobile" placeholder="Mobile"></div>
+          <div><div class="field-label">Email</div><input type="email" id="shipto_email" placeholder="Email" autocomplete="off"></div>
+        </div>
+        <div><div class="field-label">Address Line 1</div><input type="text" id="shipto_address1" placeholder="Street / Building"></div>
+        <div><div class="field-label">Address Line 2</div><input type="text" id="shipto_address2" placeholder="Area / Landmark"></div>
+        <div class="field-row-3">
+          <div><div class="field-label">Pincode</div><input type="text" id="shipto_pincode" placeholder="6 digits" maxlength="6" oninput="fetchPincodeData('shipto')"></div>
+          <div><div class="field-label">District</div><input type="text" id="shipto_district" placeholder="Auto-fill" readonly></div>
+          <div><div class="field-label">State</div><select id="shipto_state" style="min-width: 140px;"></select></div>
+        </div>
+        <div><div class="field-label">GSTIN</div><input type="text" id="shipto_gstin" placeholder="Auto-filled" class="mono" readonly></div>
+        <div><div class="field-label">PO Number (Optional)</div><input type="text" id="po_number" placeholder="Client / Vendor PO reference"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="items-section">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+      <span style="width:3px;height:16px;border-radius:2px;background:var(--accent-sale);display:inline-block;" id="itemAccentBar"></span>
+      <span style="font-size:13px;font-weight:800;color:var(--ink);">Document Items</span>
+      <span id="serviceModeNotice" style="display:none;font-size:11px;font-weight:600;color:#7c3aed;background:#f5f3ff;padding:3px 10px;border-radius:99px;border:1px solid #c4b5fd;">💼 Service Mode</span>
+    </div>
+    <div class="items-table-wrap">
+      <table class="items-table" id="itemsTable">
+        <thead>
+          <tr id="tableHeaderRow">
+            <th style="text-align:left;min-width:230px;">Particulars / Item</th>
+            <th style="text-align:center;width:88px;">HSN/SAC</th>
+            <th style="text-align:center;width:76px;" id="qtyColHeader">Qty</th>
+            <th style="text-align:right;width:120px;" id="rateColHeader">Rate (Incl. Tax)</th>
+            <th style="text-align:center;width:70px;">Disc %</th>
+            <th style="text-align:center;width:110px;">Tax %</th>
+            <th style="text-align:right;width:110px;">Total</th>
+            <th style="width:42px;"></th>
+          </tr>
+        </thead>
+        <tbody id="itemsBody"></tbody>
+      </table>
+    </div>
+    <button type="button" onclick="addRow()" class="add-row-btn">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" style="width:14px;height:14px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+      Add Item Row
+    </button>
+  </div>
+
+  <div style="padding:0 20px 24px;display:flex;justify-content:flex-end;">
+    <div class="totals-panel-wrapper" style="width:100%;max-width:360px;display:flex;flex-direction:column;gap:14px;">
+      <div class="totals-panel">
+        <div class="totals-row"><span>Taxable Amount</span><span>₹ <span id="subTotal">0.00</span></span></div>
+        <div class="totals-row"><span>IGST</span><span>₹ <span id="igst">0.00</span></span></div>
+        <div class="totals-row"><span>CGST</span><span>₹ <span id="cgst">0.00</span></span></div>
+        <div class="totals-row"><span>SGST</span><span>₹ <span id="sgst">0.00</span></span></div>
+        <div class="totals-row grand"><span>Grand Total</span><span>₹ <span id="grandTotal">0.00</span></span></div>
+      </div>
+      <button id="generateBtn" class="generate-btn sale">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        Create Sale Invoice
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:20px;">
+  <div class="card-header">
+    <div class="card-title">
+      <span class="dot" style="background:#8b5cf6;"></span>
+      {% if _module == 'sale' %}Recent Sales{% elif _module == 'purchase' %}Recent Purchases{% else %}Recent Documents{% endif %}
+      <span id="historyCount" style="font-size:11px;font-weight:600;color:var(--ink-3);margin-left:6px;"></span>
+    </div>
+    <div style="display:flex;gap:8px; flex-wrap: wrap;">
+      <button onclick="selectAllHistory(true)" class="btn btn-ghost" style="font-size:12px;padding:6px 10px;">Select All</button>
+      <button onclick="selectAllHistory(false)" class="btn btn-ghost" style="font-size:12px;padding:6px 10px;">Clear</button>
+      <button onclick="downloadZip()" class="btn btn-blue" style="font-size:12px;padding:6px 12px;">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+        Download ZIP
+      </button>
+    </div>
+  </div>
+
+  <div class="history-section">
+    <div class="history-filter-row" style="margin-bottom:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+      <div class="search-wrap">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input type="text" id="historySearch" placeholder="Search doc no. or party..." oninput="filterHistory()">
+      </div>
+      <select id="histModeFilter" style="min-width: 200px;">
+        <option value="">All Documents</option>
+        <option value="sale">Sale Only</option>
+        <option value="purchase">Purchase Only</option>
+      </select>
+    </div>
+
+    <div style="overflow-x:auto;max-height:420px;border-radius:var(--radius-sm);border:1px solid var(--border);">
+      <table class="hist-table">
+        <thead>
+          <tr>
+            <th style="width:40px;text-align:center;">✓</th>
+            <th>Doc Number</th>
+            <th>Date</th>
+            <th>Party</th>
+            <th style="text-align:right;">Amount</th>
+            <th style="text-align:center;">Type</th>
+            <th style="text-align:center;">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="historyTableBody">
+          <tr>
+            <td colspan="7" style="text-align:center;padding:36px;color:var(--ink-3);">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" style="width:32px;height:32px;margin:0 auto 8px;display:block;opacity:0.35;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              Loading documents…
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% include "_shell_end.html" %}
+<script>
+const INVOICE_TYPE = "{{ profile.get('invoice_type', 'goods') }}";
+const IS_SERVICE = (INVOICE_TYPE === 'service');
+const SELLER_STATE = "{{ profile.get('state', 'delhi') | lower }}";
+const CAN_SHIP = {{ ('true' if (current_user.is_master or current_user.has_permission('shipping')) else 'false') }};
+const RAPIDSHYP_PICKUP = "{{ profile.get('rapidshyp_pickup_location', '') }}";
+const RAPIDSHYP_STORE  = "{{ profile.get('rapidshyp_store_name', 'DEFAULT') }}";
+const LOCKED_MODULE = "{{ _module }}"; // 'sale', 'purchase', or 'all'
+const IS_LOCKED = (LOCKED_MODULE === 'sale' || LOCKED_MODULE === 'purchase');
+const INDIAN_STATES = [
+  "Andhra Pradesh","Arunachal Pradesh","Assam","Bihar","Chhattisgarh","Goa","Gujarat",
+  "Haryana","Himachal Pradesh","Jharkhand","Karnataka","Kerala","Madhya Pradesh","Maharashtra",
+  "Manipur","Meghalaya","Mizoram","Nagaland","Odisha","Punjab","Rajasthan","Sikkim",
+  "Tamil Nadu","Telangana","Tripura","Uttar Pradesh","Uttarakhand","West Bengal",
+  "Andaman and Nicobar Islands","Chandigarh","Dadra and Nagar Haveli","Daman and Diu",
+  "Delhi","Lakshadweep","Puducherry","Jammu and Kashmir","Ladakh"
+];
+
+const DOC_TYPES = {
+  sale: [ {val:'invoice', text:'Tax Invoice'}, {val:'cn', text:'Credit Note / Return'} ],
+  purchase: [ {val:'po', text:'Purchase Order'}, {val:'grn', text:'GRN — Goods Receipt Note'}, {val:'bill', text:'Purchase Bill'}, {val:'dn', text:'Debit Note / Vendor Return'} ]
+};
+
+const BTN_LABELS = {
+  sale: { invoice: 'Create Sale Invoice', cn: 'Create Credit Note' },
+  purchase: { po: 'Create Purchase Order', grn: 'Create GRN', bill: 'Create Purchase Bill', dn: 'Create Debit Note' }
+};
+
+let particularsData = {};
+let invoiceListCache = [];
+let allClientsData = {};   
+let isEditMode = false;
+let currentMode = IS_LOCKED ? LOCKED_MODULE : 'sale';
+
+let tsViewAs, tsDocType, tsGenType, tsClientState, tsShipState, tsHistMode, clientTomSelect;
+
+const EMAIL_DOMAINS = ['gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'icloud.com'];
+
+function setupEmailAutocomplete(inputElement) {
+    if (!inputElement) return;
+    const wrapper = document.createElement('div');
+    wrapper.className = 'relative w-full';
+    inputElement.parentNode.insertBefore(wrapper, inputElement);
+    wrapper.appendChild(inputElement);
+
+    const list = document.createElement('div');
+    list.className = 'autocomplete-list hidden';
+    wrapper.appendChild(list);
+
+    let currentFocus = -1;
+
+    inputElement.addEventListener('input', function() {
+        const val = this.value;
+        list.innerHTML = '';
+        list.classList.add('hidden');
+        currentFocus = -1;
+
+        if (!val.includes('@')) return;
+
+        const parts = val.split('@');
+        const prefix = parts[0];
+        const suffix = parts[1].toLowerCase();
+
+        const matches = EMAIL_DOMAINS.filter(d => d.startsWith(suffix));
+
+        if (matches.length > 0) {
+            list.classList.remove('hidden');
+            matches.forEach(domain => {
+                const item = document.createElement('div');
+                item.className = 'autocomplete-item';
+                item.innerHTML = `<span style="opacity:0.6">${prefix}@</span><strong>${domain}</strong>`;
+                item.addEventListener('pointerdown', function(e) {
+                    e.preventDefault();
+                    inputElement.value = prefix + '@' + domain;
+                    list.classList.add('hidden');
+                });
+                item.addEventListener('click', function() {
+                    inputElement.value = prefix + '@' + domain;
+                    list.classList.add('hidden');
+                });
+                list.appendChild(item);
+            });
+        }
+    });
+
+    inputElement.addEventListener('keydown', function(e) {
+        const items = list.querySelectorAll('.autocomplete-item');
+        if (e.keyCode === 40) { currentFocus++; addActive(items); } 
+        else if (e.keyCode === 38) { currentFocus--; addActive(items); } 
+        else if (e.keyCode === 13) {
+            if (currentFocus > -1 && items) { e.preventDefault(); items[currentFocus].click(); }
+        }
+    });
+
+    function addActive(items) {
+        if (!items || items.length === 0) return false;
+        items.forEach(x => x.classList.remove('focused'));
+        if (currentFocus >= items.length) currentFocus = 0;
+        if (currentFocus < 0) currentFocus = (items.length - 1);
+        items[currentFocus].classList.add('focused');
+        items[currentFocus].scrollIntoView({ block: 'nearest' });
+    }
+
+    document.addEventListener('click', function(e) {
+        if (e.target !== inputElement) list.classList.add('hidden');
+    });
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+  setupEmailAutocomplete(document.getElementById('client_email'));
+  setupEmailAutocomplete(document.getElementById('shipto_email'));
+
+  // The shell renders a plain <select id="view_as_select">; shell JS already
+  // handles navigation on change. Do not wrap it with TomSelect (double-binding
+  // causes redirect loops).
+
+  tsGenType = new TomSelect("#generation_type", {
+      controlInput: null,
+      onChange: function(val) {
+          document.getElementById('manual_details').className = val==='manual' ? 'manual-block visible' : 'manual-block';
+      }
+  });
+
+  tsHistMode = new TomSelect("#histModeFilter", {
+      controlInput: null,
+      onChange: filterHistory
+  });
+  if (document.getElementById('tds_applicable')) {
+      new TomSelect("#tds_applicable", {
+          controlInput: null,
+          create: false,
+          onInitialize: function() {
+              this.control.style.minWidth = '200px';
+          }
+      });
+  }
+  populateStates();
+  document.getElementsByName('appMode').forEach(r => { if(r.checked) currentMode = r.value; });
+  handleModeChange();
+
+  if (IS_LOCKED && tsHistMode) {
+    tsHistMode.setValue(LOCKED_MODULE);
+    // lock the filter too — user is in a module-specific view
+    const histFilterEl = document.getElementById('histModeFilter');
+    if (histFilterEl) histFilterEl.closest('.history-filter-row').querySelector('.ts-wrapper').style.display = 'none';
+  }
+
+  await loadClients();
+  await loadParticulars();
+  loadOldInvoices();
+  addRow();
+  applyServiceMode();  
+});
+
+function applyServiceMode() {
+  const shipBlock = document.getElementById('shipToBlock');
+  const notice = document.getElementById('serviceModeNotice');
+  const rateHeader = document.getElementById('rateColHeader');
+  const qtyHeader = document.getElementById('qtyColHeader');
+  const qtyCells = document.querySelectorAll('.qty-cell');
+  const subParticularWrappers = document.querySelectorAll('.sub-particular-wrapper');
+  const tdsWrapper = document.getElementById('tds_wrapper');
+
+  if (IS_SERVICE) {
+    if (shipBlock) shipBlock.style.display = 'none';
+    if (notice) notice.style.display = 'inline-flex';
+    if (rateHeader) rateHeader.textContent = 'Rate (Excl. Tax)';
+    if (qtyHeader) qtyHeader.style.display = 'none';
+    if (tdsWrapper) tdsWrapper.style.display = 'flex';
+    qtyCells.forEach(c => c.style.display = 'none');
+    subParticularWrappers.forEach(c => c.style.display = 'block');
+  } else {
+    if (shipBlock) shipBlock.style.display = '';
+    if (notice) notice.style.display = 'none';
+    if (rateHeader) rateHeader.textContent = 'Rate (Incl. Tax)';
+    if (qtyHeader) qtyHeader.style.display = '';
+    if (tdsWrapper) {
+      tdsWrapper.style.display = 'none';
+      const tdsSel = document.getElementById('tds_applicable');
+      if (tdsSel && tdsSel.tomselect) tdsSel.tomselect.setValue('no');
+    }
+    qtyCells.forEach(c => c.style.display = '');
+    subParticularWrappers.forEach(c => c.style.display = 'none');
+  }
+}
+
+function populateStates() {
+  const opts = [{value: "", text: "Select State"}].concat(INDIAN_STATES.map(s => ({value: s, text: s})));
+  
+  if(tsClientState) tsClientState.destroy();
+  tsClientState = new TomSelect("#client_state", { options: opts, create: false, onChange: calculateTotals });
+
+  if(tsShipState) tsShipState.destroy();
+  tsShipState = new TomSelect("#shipto_state", { options: opts, create: false, onChange: calculateTotals });
+}
+
+function updateBtnLabel() {
+  if (isEditMode) return;
+  const type = tsDocType ? tsDocType.getValue() : 'invoice';
+  const labels = BTN_LABELS[currentMode] || {};
+  const label = labels[type] || (currentMode === 'sale' ? 'Create Sale Invoice' : 'Create Purchase Document');
+  const btn = document.getElementById('generateBtn');
+  if (!btn) return;
+  const svgSale = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>`;
+  const svgPur = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>`;
+  btn.className = 'generate-btn ' + (currentMode === 'sale' ? 'sale' : 'purchase');
+  btn.innerHTML = (currentMode === 'sale' ? svgSale : svgPur) + ' ' + label;
+}
+
+function handleModeChange() {
+  document.getElementsByName('appMode').forEach(r => { if(r.checked) currentMode = r.value; });
+  const isSale = currentMode === 'sale';
+
+  const pS = document.getElementById('pillSale');
+  const pP = document.getElementById('pillPurchase');
+  if(pS) pS.className = 'mode-pill' + (isSale ? ' active-sale' : '');
+  if(pP) pP.className = 'mode-pill' + (!isSale ? ' active-purchase' : '');
+
+  const opts = DOC_TYPES[currentMode];
+  if (!tsDocType) {
+      document.getElementById('doc_type_select').innerHTML = opts.map(o=>`<option value="${o.val}">${o.text}</option>`).join('');
+      tsDocType = new TomSelect("#doc_type_select", { controlInput: null, onChange: handleDocTypeChange });
+  } else {
+      tsDocType.clearOptions();
+      opts.forEach(o => tsDocType.addOption({value: o.val, text: o.text}));
+      tsDocType.setValue(opts[0].val); 
+  }
+
+  const table = document.getElementById('itemsTable');
+  if(table) table.className = 'items-table' + (isSale ? '' : ' purchase-mode');
+
+  const accentBar = document.getElementById('itemAccentBar');
+  if(accentBar) accentBar.style.background = isSale ? 'var(--accent-sale)' : 'var(--accent-purchase)';
+
+  document.getElementById('billToHeader').textContent = isSale ? '📋 Bill To (Client)' : '🏭 Vendor Details';
+  document.getElementById('shipToHeader').textContent = isSale ? '🚚 Ship To' : '🏬 Ship To / Warehouse';
+  document.getElementById('client_name').placeholder  = isSale ? 'Client full name' : 'Vendor company name';
+
+  rebuildClientSelect();
+  applyServiceMode();
+}
+
+function handleDocTypeChange() {
+  const type = tsDocType ? tsDocType.getValue() : 'invoice';
+  const rw = document.getElementById('reference_wrapper');
+  const rl = document.getElementById('reference_label');
+  const ri = document.getElementById('reference_doc_no');
+  rw.style.display = 'none'; ri.value = ''; ri.required = false;
+  if(type==='cn'){ rw.style.display='flex'; rl.textContent='Original Invoice No'; ri.placeholder='e.g. SMT/25-26/0001'; ri.required=true; }
+  else if(type==='dn'){ rw.style.display='flex'; rl.textContent='Original Bill No'; ri.placeholder='e.g. SMT-PB/25-26/0001'; ri.required=true; }
+  else if(type==='grn'){ rw.style.display='flex'; rl.textContent='Link PO Number'; ri.placeholder='e.g. SMT-PO/25-26/0001'; }
+  else if(type==='bill'){ rw.style.display='flex'; rl.textContent='Link GRN Number'; ri.placeholder='Optional'; }
+  updateBtnLabel();
+}
+
+async function fetchPincodeData(prefix) {
+  const pin = document.getElementById(prefix+'_pincode').value;
+  if(pin.length === 6) {
+    try {
+      const res = await fetch(`https://api.postalpincode.in/pincode/${pin}`);
+      const data = await res.json();
+      if(data[0].Status === "Success" && data[0].PostOffice && data[0].PostOffice.length) {
+        const d = data[0].PostOffice[0];
+        document.getElementById(prefix+'_district').value = d.District;
+        if (prefix === 'client' && tsClientState) tsClientState.setValue(d.State);
+        if (prefix === 'shipto' && tsShipState) tsShipState.setValue(d.State);
+      }
+    } catch(e) {}
+  }
+}
+
+function toggleShipTo() {
+  const isSame = document.getElementById('same_as_bill').checked;
+  const c = document.getElementById('ship_to_container');
+  if(isSame) {
+    c.style.opacity = '0.5'; c.style.pointerEvents = 'none';
+    ['name','mobile','email','address1','address2','pincode','district','gstin'].forEach(f => {
+      const b = document.getElementById('client_'+f), s = document.getElementById('shipto_'+f);
+      if(b && s) s.value = b.value;
+    });
+    if (tsClientState && tsShipState) tsShipState.setValue(tsClientState.getValue());
+  } else {
+    c.style.opacity = ''; c.style.pointerEvents = '';
+  }
+}
+
+async function loadClients() {
+  try {
+    const res = await fetch('/clients');
+    allClientsData = await res.json();
+    rebuildClientSelect();
+  } catch(e) { console.error("Client load error:", e); }
+}
+
+function rebuildClientSelect() {
+  const data = allClientsData;
+  if(clientTomSelect) {
+    try { clientTomSelect.destroy(); } catch(e) {}
+    clientTomSelect = null;
+  }
+
+  const uniqueParties = new Map();
+
+  // 1. Add Master DB Clients first (this prioritizes the correct Saved Case)
+  Object.keys(data).forEach(k => uniqueParties.set(k.toLowerCase(), k));
+
+  // 2. Add Invoice History Clients (Case-insensitive deduplication)
+  if (invoiceListCache.length > 0) {
+    let filterCat = currentMode === 'purchase' ? 'purchase' : 'sale';
+    invoiceListCache.filter(i => (i.doc_category || 'sale') === filterCat).forEach(i => {
+      if (i.client_name && !uniqueParties.has(i.client_name.toLowerCase())) {
+        uniqueParties.set(i.client_name.toLowerCase(), i.client_name);
+      }
+    });
+  }
+
+  const partyOptions = Array.from(uniqueParties.values()).map(n => ({value: n, text: n}));
+
+  clientTomSelect = new TomSelect("#clientSelect", {
+    options: partyOptions,
+    create: true, sortField:{field:"text",direction:"asc"},
+    placeholder: "Search or type party name…",
+    onChange: function(value) {
+      if(!value) return;
+      document.getElementById('client_name').value = value;
+      
+      // Case-insensitive lookup to find the real profile data
+      const actualKey = Object.keys(data).find(k => k.toLowerCase() === value.toLowerCase());
+
+      if(actualKey && data[actualKey]) {
+        const c = data[actualKey];
+        ['address1','address2','pincode','district','gstin','email','mobile'].forEach(f => document.getElementById('client_'+f).value = c[f]||'');
+        if (tsClientState) tsClientState.setValue(c.state || '');
+        // Ship To — use saved shipto_* fields; fall back to billing fields if not set
+        document.getElementById('shipto_name').value     = value;
+        document.getElementById('shipto_mobile').value   = c.mobile || '';
+        document.getElementById('shipto_email').value    = c.email || '';
+        document.getElementById('shipto_address1').value = c.shipto_address1 || c.address1 || '';
+        document.getElementById('shipto_address2').value = c.shipto_address2 || c.address2 || '';
+        document.getElementById('shipto_pincode').value  = c.shipto_pincode  || c.pincode  || '';
+        document.getElementById('shipto_district').value = c.shipto_district || c.district || '';
+        document.getElementById('shipto_gstin').value    = c.gstin || '';
+        if (tsShipState) tsShipState.setValue(c.shipto_state || c.state || '');
+      } else {
+        ['address1','address2','pincode','district','gstin','email','mobile'].forEach(f => document.getElementById('client_'+f).value='');
+        if (tsClientState) tsClientState.setValue('');
+        ['name','mobile','email','address1','address2','pincode','district'].forEach(f => document.getElementById('shipto_'+f).value='');
+        document.getElementById('shipto_gstin').value = '';
+        if (tsShipState) tsShipState.setValue('');
+      }
+      calculateTotals();
+    }
+  });
+}
+
+async function loadParticulars() {
+  try { 
+    const r = await fetch('/particulars'); 
+    const rawData = await r.json(); 
+    particularsData = {};
+    
+    Object.keys(rawData).forEach(key => {
+        const cleanKey = key.split('\n')[0].trim();
+        particularsData[cleanKey] = rawData[key]; 
+    });
+  } catch(e) { 
+    console.error("Error loading particulars:", e); 
+  }
+}
+
+async function loadOldInvoices() {
+  try {
+    const res = await fetch('/invoices-list');
+    invoiceListCache = await res.json();
+    invoiceListCache.sort((a,b) => b.bill_no.localeCompare(a.bill_no, undefined, {numeric:true}));
+    renderHistoryTable(invoiceListCache);
+    rebuildClientSelect();
+  } catch(e) { console.error(e); }
+}
+
+function getBadge(cat, type) {
+  if(cat==='purchase') {
+    if(type==='bill') return ['BILL','badge-bill'];
+    if(type==='grn')  return ['GRN','badge-grn'];
+    if(type==='po')   return ['PO','badge-po'];
+    if(type==='dn')   return ['DN','badge-dn'];
+    return ['PUR','badge-po'];
+  }
+  if(type==='cn') return ['CN','badge-cn'];
+  if(type==='dn') return ['DN','badge-dn'];
+  return ['INV','badge-inv'];
+}
+
+function renderHistoryTable(data) {
+  const modeFilter = tsHistMode ? tsHistMode.getValue() : '';
+  let filtered = data;
+  if (modeFilter) filtered = data.filter(i => (i.doc_category || 'sale') === modeFilter);
+
+  const tbody = document.getElementById('historyTableBody');
+  const count = document.getElementById('historyCount');
+  tbody.innerHTML = '';
+  count.textContent = `(${filtered.length})`;
+  if(!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:36px;color:var(--ink-3);">No documents found.</td></tr>';
+    return;
+  }
+  const now = new Date();
+  filtered.forEach(inv => {
+    let showEdit = false;
+    if(inv.timestamp) showEdit = ((now - new Date(inv.timestamp))/3600000) <= 24;
+    const cat = inv.doc_category||'sale', type = inv.doc_type||'invoice';
+    const [label, cls] = getBadge(cat, type);
+    const status = inv.status||'';
+    const catBadge = cat === 'purchase' ? '<span style="font-size:9px;font-weight:800;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:4px;padding:1px 5px;margin-left:4px;">PUR</span>' : '';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="text-align:center;"><input type="checkbox" class="hist-checkbox" value="${inv.bill_no}"></td>
+      <td>
+        <div style="font-weight:700;color:var(--ink);font-family:'JetBrains Mono',monospace;font-size:12.5px;">${inv.bill_no}${catBadge}</div>
+        <span class="doc-badge ${cls}">${label}</span>
+      </td>
+      <td style="font-size:12px;color:var(--ink-3);">${inv.invoice_date||'—'}</td>
+      <td style="font-weight:600;">${inv.client_name||'—'}</td>
+      <td style="text-align:right;font-family:'JetBrains Mono',monospace;font-weight:600;">₹${inv.grand_total ? inv.grand_total.toFixed(2) : '0.00'}</td>
+      <td style="text-align:center;">${status ? `<span class="status-badge status-${status}">${status}</span>` : '<span style="color:var(--ink-3);font-size:11px;">—</span>'}</td>
+      <td>
+        <div style="display:flex;align-items:center;justify-content:center;gap:3px;">
+          ${showEdit && type!=='dn' && type!=='cn' ? `<button onclick="editInvoice('${inv.bill_no}')" class="act-btn" title="Edit"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="#6366f1" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>` : ''}
+          <button onclick="downloadSingle('${inv.bill_no}')" class="act-btn" title="Download PDF"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="#3b82f6" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg></button>
+          <button onclick="emailSingle('${inv.bill_no}')" class="act-btn" title="Email Client"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="#10b981" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg></button>
+          ${CAN_SHIP && cat === 'sale' && type === 'invoice' ? (getShippedOrder(inv.bill_no) ?
+            `<div style="display:inline-flex;align-items:center;gap:3px;">
+               <span style="font-size:10px;font-weight:700;color:#16a34a;padding:2px 7px;background:#f0fdf4;border:1px solid #a7f3d0;border-radius:4px;white-space:nowrap;" title="RapidShyp: ${getShippedOrder(inv.bill_no)}">✓ Shipped</span>
+               <button onclick="openTrackModal('${inv.bill_no}')" class="act-btn" title="Track Shipment"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="#0891b2" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg></button>
+               <button onclick="openAwbModal('${inv.bill_no}')" class="act-btn" title="Assign AWB"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="#2563eb" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg></button>
+               <button onclick="cancelB2BShipment('${inv.bill_no}')" class="act-btn" title="Cancel B2B Shipment"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="#dc2626" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></button>
+             </div>` :
+            `<button onclick="openShipModal('${inv.bill_no}')" class="act-btn" title="Create B2B Shipment (RapidShyp)"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="#f97316" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg></button>`) : ''}
+        </div>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function filterHistory() {
+  const term = document.getElementById('historySearch').value.toLowerCase();
+  const modeFilter = tsHistMode ? tsHistMode.getValue() : '';
+  renderHistoryTable(invoiceListCache.filter(i =>
+    (i.bill_no.toLowerCase().includes(term) || (i.client_name && i.client_name.toLowerCase().includes(term)))
+  ));
+}
+
+function selectAllHistory(s) { document.querySelectorAll('.hist-checkbox').forEach(cb => cb.checked = s); }
+
+// Convert YYYY-MM-DD from calendar to DD-MM-YYYY for backend
+function formatToDDMMYYYY(ymdStr) {
+    if (!ymdStr) return '';
+    const parts = ymdStr.split('-');
+    if (parts.length === 3 && parts[0].length === 4) { return `${parts[2]}-${parts[1]}-${parts[0]}`; }
+    return ymdStr;
+}
+
+// Convert DD-Mon-YYYY from backend to YYYY-MM-DD for native input
+function convertDateForInput(d) {
+  if(!d) return "";
+  const parts = d.split('-'); 
+  if(parts.length === 3 && parts[0].length === 2) {
+      const m = {Jan:"01",Feb:"02",Mar:"03",Apr:"04",May:"05",Jun:"06",Jul:"07",Aug:"08",Sep:"09",Oct:"10",Nov:"11",Dec:"12"};
+      const month = isNaN(parseInt(parts[1])) ? m[parts[1]] : parts[1];
+      return `${parts[2]}-${month}-${parts[0]}`;
+  }
+  return d;
+}
+
+function formatToDDMonYYYY(ymdStr) {
+    if (!ymdStr) return '';
+    const parts = ymdStr.split('-');
+    if (parts.length === 3 && parts[0].length === 4) {
+        const m = { "01":"Jan", "02":"Feb", "03":"Mar", "04":"Apr", "05":"May", "06":"Jun", "07":"Jul", "08":"Aug", "09":"Sep", "10":"Oct", "11":"Nov", "12":"Dec" };
+        return `${parts[2]}-${m[parts[1]]}-${parts[0]}`;
+    }
+    return ymdStr;
+}
+
+
+async function editInvoice(billNo) {
+  const inv = invoiceListCache.find(i => i.bill_no === billNo);
+  if (!inv) { sdAlert('Document not found.', 'Not Found'); return; }
+  const ok = await sdConfirm(`Load <strong>${billNo}</strong> for editing?<br><span style="font-size:12px;color:#9ca3af;">Stock changes will be skipped.</span>`, 'Load for Editing', { okLabel: 'Load', cancelLabel: 'Cancel' });
+  if (!ok) return;
+  isEditMode = true;
+  const eb = document.getElementById('editBanner');
+  eb.style.display = 'flex';
+  document.getElementById('editBannerDocNo').textContent = billNo;
+  const btn = document.getElementById('generateBtn');
+  btn.className = 'generate-btn edit';
+  btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg> Update & Regenerate PDF`;
+  const cat = inv.doc_category||'sale', type = inv.doc_type||'invoice';
+  const radios = document.getElementsByName('appMode');
+  let hasPerm = false; radios.forEach(r => { if(r.value===cat) hasPerm=true; });
+  if (!hasPerm) { sdAlert('You do not have permission for ' + cat + ' documents.', 'No Permission'); return; }
+  radios.forEach(r => r.checked = (r.value===cat));
+  
+  handleModeChange();
+  
+  setTimeout(() => { 
+      if(tsDocType) tsDocType.setValue(type); 
+      if(tsGenType) tsGenType.setValue('manual');
+  }, 50);
+
+  if(clientTomSelect) { clientTomSelect.addOption({value:inv.client_name,text:inv.client_name}); clientTomSelect.setValue(inv.client_name); }
+  
+  ['address1','address2','pincode','district','gstin','email','mobile'].forEach(f => { if(inv['client_'+f]) document.getElementById('client_'+f).value=inv['client_'+f]; });
+  if(tsClientState) tsClientState.setValue(inv.client_state || '');
+
+  ['name','address1','address2','pincode','district','gstin','email','mobile'].forEach(f => { if(inv['shipto_'+f]) document.getElementById('shipto_'+f).value=inv['shipto_'+f]; });
+  if(tsShipState) tsShipState.setValue(inv.shipto_state || '');
+
+  document.getElementById('po_number').value = inv.po_number||'';
+  if(inv.original_invoice_no) document.getElementById('reference_doc_no').value = inv.original_invoice_no;
+  
+  document.getElementById('manual_bill_no').value = inv.bill_no;
+  document.getElementById('manual_bill_no').readOnly = true;
+  document.getElementById('manual_bill_no').style.background = 'var(--surface-3)';
+  document.getElementById('manual_invoice_date').value = convertDateForInput(inv.invoice_date);
+  document.getElementById('is_non_gst').checked = inv.is_non_gst||false;
+  
+  document.getElementById('itemsBody').innerHTML = '';
+  (inv.particulars||[]).forEach((item, i) => {
+    const row = addRow();
+    const sel = row.querySelector('.particulars-select');
+    let mainText = item;
+    let subText = '';
+    if (IS_SERVICE && item.includes('\n')) {
+        const parts = item.split('\n');
+        mainText = parts[0];
+        subText = parts.slice(1).join('\n');
+    }
+    if(sel.tomselect) { sel.tomselect.addOption({value:mainText,text:mainText}); sel.tomselect.setValue(mainText, true); }
+    if (IS_SERVICE) {
+        const subSel = row.querySelector('.sub-particular');
+        if (subSel.tomselect) {
+            subSel.tomselect.addOption({value: subText, text: subText});
+            subSel.tomselect.setValue(subText, true);
+        }
+    }
+    
+    row.querySelector('.hsn').value = inv.hsns?inv.hsns[i]:'';
+    row.querySelector('.qty').value = inv.qtys?Math.abs(inv.qtys[i]):1;
+    row.querySelector('.rate').value = inv.rates?Math.abs(inv.rates[i]):0;
+    const discEl = row.querySelector('.discount');
+    if(discEl) discEl.value = inv.discounts?(inv.discounts[i]||0):0;
+    
+    const trSel = row.querySelector('.taxrate');
+    if(trSel && trSel.tomselect) trSel.tomselect.setValue(inv.taxrates ? inv.taxrates[i] : 0);
+
+    row.querySelector('.qty').dispatchEvent(new Event('input'));
+  });
+  calculateTotals();
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+async function handleParticularInput(val, row) {
+  const sl = row.querySelector('.stock-label'); sl.innerHTML = '';
+  if(!val) return;
+  const isNonGST = document.getElementById('is_non_gst').checked;
+  let fd = particularsData[isNonGST ? val+'_NONGST' : val] || (isNonGST ? particularsData[val] : null);
+
+  // Product ID resolution: if the typed value isn't a known particular but matches
+  // a Product ID, swap it for the underlying particular name and recurse. The
+  // Product ID itself never appears anywhere on the invoice — it's only a lookup key.
+  if (!fd) {
+    try {
+      const r = await fetch('/products/lookup/' + encodeURIComponent(val));
+      if (r.ok) {
+        const product = await r.json();
+        if (product && product.name && product.name !== val) {
+          const sel = row.querySelector('.particulars-select');
+          if (sel && sel.tomselect) {
+            // Make sure the resolved name is an option and select it; this re-triggers onChange.
+            if (!sel.tomselect.options[product.name]) {
+              sel.tomselect.addOption({ value: product.name, text: product.name });
+            }
+            // Remove the raw product-id option so it doesn't linger in the dropdown.
+            try { sel.tomselect.removeOption(val); } catch {}
+            sel.tomselect.setValue(product.name);
+            return; // onChange will re-fire handleParticularInput with the real name
+          }
+        }
+      }
+    } catch { /* offline / network — silently fall through */ }
+  }
+  if(fd) {
+    if(IS_SERVICE) {
+        const subSel = row.querySelector('.sub-particular');
+        if(subSel && subSel.tomselect) {
+            subSel.tomselect.clearOptions();
+            subSel.tomselect.clear();
+            let subs = fd.sub_particulars || [];
+            if(fd.sub_particular && !subs.includes(fd.sub_particular)) subs.push(fd.sub_particular);
+            subs.forEach(s => subSel.tomselect.addOption({value: s, text: s}));
+            
+            if(subs.length > 0) {
+                subSel.tomselect.setValue(subs[0]); 
+            } else {
+                if(fd.rate !== undefined) row.querySelector('.rate').value = fd.rate;
+                if(isNonGST) row.querySelector('.hsn').value=''; else if(fd.hsn) row.querySelector('.hsn').value=fd.hsn;
+                if(!isNonGST && fd.taxrate !== undefined) {
+                    const trSel = row.querySelector('.taxrate');
+                    if(trSel.tomselect) trSel.tomselect.setValue(fd.taxrate);
+                }
+                calculateRowAmount.call(row.querySelector('.qty'));
+            }
+        }
+    } else {
+        if(fd.rate !== undefined) row.querySelector('.rate').value = fd.rate;
+        if(isNonGST) row.querySelector('.hsn').value=''; else if(fd.hsn) row.querySelector('.hsn').value=fd.hsn;
+        if(!isNonGST && fd.taxrate !== undefined) {
+            const trSel = row.querySelector('.taxrate');
+            if(trSel.tomselect) trSel.tomselect.setValue(fd.taxrate);
+        }
+        calculateRowAmount.call(row.querySelector('.qty'));
+    }
+  }
+  // Skip stock checking entirely if we are in Service Mode
+  if(currentMode === 'sale' && !IS_SERVICE) {
+    sl.innerHTML = '<span class="stock-chip chk">Checking…</span>';
+    try {
+      const r = await fetch(`/api/check-stock/${encodeURIComponent(val)}`);
+      const sd = await r.json();
+      if (sd.exists) {
+        sl.innerHTML = sd.stock >= 0 
+          ? `<span class="stock-chip in">In Stock: ${sd.stock}</span>` 
+          : `<span class="stock-chip out">Stock: ${sd.stock}</span>`;
+      } else {
+        sl.innerHTML = `<span class="stock-chip none">No Record (Auto-create)</span>`;
+      }
+    } catch(e) { sl.innerHTML=''; }
+  }
+}
+
+function addRow() {
+  const tbody = document.getElementById('itemsBody');
+  const row = document.createElement('tr');
+  row.innerHTML = `
+    <td style="padding:8px;min-width:220px;">
+      <select class="particulars-select" placeholder="Search or type item…"></select>
+      <div class="sub-particular-wrapper" style="display:none; margin-top:6px;">
+        <select class="sub-particular" placeholder="Select or type new sub-particular..."></select>
+      </div>
+      <div class="stock-label"></div>
+    </td>
+    <td style="padding:5px 6px;"><input type="text" value="" class="hsn" style="text-align:center;width:82px;"></td>
+    <td class="qty-cell" style="padding:5px 6px;"><input type="number" class="qty" value="1" min="0.01" step="0.01" style="text-align:center;width:68px;font-weight:700;"></td>
+    <td style="padding:5px 6px;"><input type="number" class="rate" value="0" min="0" style="text-align:right;width:108px;"></td>
+    <td style="padding:5px 6px;"><input type="number" class="discount" value="0" min="0" max="100" step="0.5" style="text-align:center;width:64px;"></td>
+    <td style="padding:5px 6px;"><select class="taxrate" style="width:100px;"><option value="18">18%</option><option value="5">5%</option><option value="40">40%</option><option value="0">0%</option></select></td>
+    <td style="padding:5px 6px;" class="amount-cell"><input type="number" class="amount" value="0" readonly style="text-align:right;border:none;background:transparent;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13px;"></td>
+    <td style="padding:5px 6px;text-align:center;"><button type="button" onclick="removeRow(this)" class="row-remove">×</button></td>`;
+  tbody.appendChild(row);
+  
+  const subSelEl = row.querySelector('.sub-particular');
+  let subTomSelect = new TomSelect(subSelEl, {
+      create: true,
+      sortField: {field: "text", direction: "asc"},
+      dropdownParent: 'body',
+      onChange: function(subVal) {
+          if(!subVal) return;
+          const mainSel = row.querySelector('.particulars-select');
+          if(!mainSel || !mainSel.tomselect) return;
+          const mainVal = mainSel.tomselect.getValue();
+          if(!mainVal) return;
+          
+          const isNonGST = document.getElementById('is_non_gst').checked;
+          let fd = particularsData[isNonGST ? mainVal+'_NONGST' : mainVal] || (isNonGST ? particularsData[mainVal] : null);
+          
+          if (fd && fd.sub_details && fd.sub_details[subVal]) {
+              const sd = fd.sub_details[subVal];
+              if(sd.rate !== undefined) row.querySelector('.rate').value = sd.rate;
+              if(isNonGST) row.querySelector('.hsn').value=''; else if(sd.hsn) row.querySelector('.hsn').value=sd.hsn;
+              if(!isNonGST && sd.taxrate !== undefined) {
+                  const trSel = row.querySelector('.taxrate');
+                  if(trSel.tomselect) trSel.tomselect.setValue(sd.taxrate);
+              }
+              calculateRowAmount.call(row.querySelector('.qty'));
+          }
+      }
+  });
+
+  new TomSelect(row.querySelector('.particulars-select'), {
+    options: Object.keys(particularsData).map(k => {
+      const pd = particularsData[k] || {};
+      return { value: k, text: k, product_id: pd.product_id || '' };
+    }),
+    create: true,
+    // Match user-typed input against BOTH the particular name and its Product ID,
+    // so typing "SKU-001" finds the corresponding product while typing.
+    searchField: ['text', 'product_id'],
+    sortField: {field:"text", direction:"asc"},
+    dropdownParent: 'body',
+    render: {
+      option: function(data, escape) {
+        // Show the Product ID as a small monospace chip on the right so the user
+        // can see/recognise it in the dropdown. It never appears in the selected
+        // item (see `item` render below), so the invoice itself stays clean.
+        const pidBadge = data.product_id
+          ? `<span style="margin-left:8px; padding:1px 6px; border-radius:3px; background:#eef2ff; color:#3730a3; font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:700; letter-spacing:0.3px;">${escape(data.product_id)}</span>`
+          : '';
+        return `<div style="padding:8px 12px;font-size:13px; display:flex; align-items:center; justify-content:space-between;"><span>${escape(data.text)}</span>${pidBadge}</div>`;
+      },
+      item: function(data, escape) {
+        // Selected item shows ONLY the name — Product ID never shows on the invoice.
+        return `<div>${escape(data.text)}</div>`;
+      }
+    },
+    onChange: val => handleParticularInput(val, row)
+  });
+
+  new TomSelect(row.querySelector('.taxrate'), {
+      controlInput: null,
+      dropdownParent: 'body',
+      onChange: calculateTotals
+  });
+
+  attachRowListeners(row);
+  
+  // Immediately apply the correct layout (hides Qty for Service Mode)
+  applyServiceMode(); 
+  
+  return row;
+}
+
+function removeRow(btn) {
+  const row = btn.closest('tr');
+  const s = row.querySelector('.particulars-select');
+  if(s && s.tomselect) s.tomselect.destroy();
+  const sub = row.querySelector('.sub-particular');
+  if(sub && sub.tomselect) sub.tomselect.destroy();
+  const tr = row.querySelector('.taxrate');
+  if(tr && tr.tomselect) tr.tomselect.destroy();
+  row.remove(); 
+  calculateTotals();
+}
+
+function attachRowListeners(row) {
+  row.querySelector('.qty').addEventListener('input', calculateRowAmount);
+  row.querySelector('.rate').addEventListener('input', calculateRowAmount);
+  row.querySelector('.discount').addEventListener('input', calculateRowAmount);
+}
+
+function calculateRowAmount() {
+  const row = this.closest('tr');
+  const qty  = parseFloat(row.querySelector('.qty').value||0);
+  const rate = parseFloat(row.querySelector('.rate').value||0);
+  const disc = parseFloat(row.querySelector('.discount').value||0);
+  const base = qty * rate;
+  const afterDisc = base - base*(disc/100);
+
+  if (IS_SERVICE) {
+    row.querySelector('.amount').value = afterDisc.toFixed(2);
+  } else {
+    row.querySelector('.amount').value = afterDisc.toFixed(2);
+  }
+  calculateTotals();
+}
+
+function calculateTotals() {
+  const isNonGST = document.getElementById('is_non_gst').checked;
+  const rows = document.querySelectorAll('#itemsBody tr');
+  rows.forEach(row => {
+    const ts = row.querySelector('.taxrate'), hn = row.querySelector('.hsn');
+    if(isNonGST){ 
+        if(ts.tomselect) { ts.tomselect.setValue("0", true); ts.tomselect.disable(); }
+        hn.disabled=true; hn.style.background='var(--surface-3)'; 
+    }
+    else{ 
+        if(ts.tomselect) { ts.tomselect.enable(); }
+        hn.disabled=false; hn.style.background=''; 
+    }
+  });
+  let sub=0, igst=0, cgst=0, sgst=0, grandTotal=0;
+  const clientState = tsClientState ? tsClientState.getValue() : '';
+  const isInter = clientState && clientState.toLowerCase() !== SELLER_STATE;
+  
+  rows.forEach(row => {
+    const amt = parseFloat(row.querySelector('.amount').value||0);
+    const trSelect = row.querySelector('.taxrate');
+    const tr_rate = isNonGST ? 0 : parseFloat(trSelect.tomselect ? trSelect.tomselect.getValue() : trSelect.value) || 0;
+
+    if (IS_SERVICE) {
+      sub += amt;
+      const ta = isNonGST ? 0 : amt * tr_rate / 100;
+      grandTotal += amt + ta;
+      if(!isNonGST){ if(isInter) igst+=ta; else{ cgst+=ta/2; sgst+=ta/2; } }
+    } else {
+      const tx = amt/(1+tr_rate/100), ta = amt-tx;
+      sub += tx;
+      grandTotal += amt;
+      if(!isNonGST){ if(isInter) igst+=ta; else{ cgst+=ta/2; sgst+=ta/2; } }
+    }
+  });
+  document.getElementById('subTotal').textContent  = sub.toFixed(2);
+  document.getElementById('igst').textContent       = igst.toFixed(2);
+  document.getElementById('cgst').textContent       = cgst.toFixed(2);
+  document.getElementById('sgst').textContent       = sgst.toFixed(2);
+  document.getElementById('grandTotal').textContent = grandTotal.toFixed(2);
+}
+
+document.getElementById('is_non_gst').addEventListener('change', calculateTotals);
+
+document.getElementById('generateBtn').addEventListener('click', async () => {
+  const clientName = document.getElementById('client_name').value.trim();
+  if (!clientName) { sdAlert('Please enter a Party Name.', 'Missing Info'); return; }
+  const type   = tsDocType ? tsDocType.getValue() : 'invoice';
+  const refDoc = document.getElementById('reference_doc_no').value.trim();
+  if ((type==='cn'||type==='dn') && !refDoc) { sdAlert('You must provide the Original Reference Document Number for Credit/Debit Notes.', 'Missing Info'); return; }
+  const items = document.querySelectorAll('#itemsBody tr');
+  let hasItem = false;
+  items.forEach(tr => { const s=tr.querySelector('.particulars-select'); if(s&&s.tomselect&&s.tomselect.getValue()) hasItem=true; });
+  if (!hasItem) { sdAlert('Please add at least one item.', 'Missing Info'); return; }
+  let finalRef=refDoc, finalPO=document.getElementById('po_number').value.trim();
+  if(type==='grn') finalPO=refDoc;
+  
+  const rawDate = document.getElementById('manual_invoice_date').value;
+  
+  const data = {
+    is_edit: isEditMode, doc_category: currentMode, doc_type: type,
+    invoice_type: INVOICE_TYPE, 
+    is_non_gst: document.getElementById('is_non_gst').checked,
+    client_name: clientName,
+    client_address1: document.getElementById('client_address1').value.trim(),
+    client_address2: document.getElementById('client_address2').value.trim(),
+    client_pincode:  document.getElementById('client_pincode').value.trim(),
+    client_district: document.getElementById('client_district').value.trim(),
+    client_state:    tsClientState ? tsClientState.getValue() : '',
+    client_gstin:    document.getElementById('client_gstin').value.trim(),
+    client_email:    document.getElementById('client_email').value.trim(),
+    client_mobile:   document.getElementById('client_mobile').value.trim(),
+    shipto_name:     IS_SERVICE ? '' : document.getElementById('shipto_name').value.trim(),
+    shipto_address1: IS_SERVICE ? '' : document.getElementById('shipto_address1').value.trim(),
+    shipto_address2: IS_SERVICE ? '' : document.getElementById('shipto_address2').value.trim(),
+    shipto_pincode:  IS_SERVICE ? '' : document.getElementById('shipto_pincode').value.trim(),
+    shipto_district: IS_SERVICE ? '' : document.getElementById('shipto_district').value.trim(),
+    shipto_state:    IS_SERVICE ? '' : (tsShipState ? tsShipState.getValue() : ''),
+    shipto_gstin:    IS_SERVICE ? '' : document.getElementById('shipto_gstin').value.trim(),
+    shipto_email:    IS_SERVICE ? '' : document.getElementById('shipto_email').value.trim(),
+    shipto_mobile:   IS_SERVICE ? '' : document.getElementById('shipto_mobile').value.trim(),
+    po_number: finalPO, original_invoice_no: finalRef,
+    particulars: Array.from(items).map(tr => { 
+        const s = tr.querySelector('.particulars-select'); 
+        let mainPart = s.tomselect ? s.tomselect.getValue() : '';
+        if (IS_SERVICE) {
+            const subSel = tr.querySelector('.sub-particular');
+            const subPart = subSel && subSel.tomselect ? subSel.tomselect.getValue().trim() : '';
+            if (subPart) mainPart += '\n' + subPart;
+        }
+        return mainPart; 
+    }),
+    qtys:      Array.from(items).map(tr => parseFloat(tr.querySelector('.qty').value||1)),
+    rates:     Array.from(items).map(tr => parseFloat(tr.querySelector('.rate').value||0)),
+    discounts: Array.from(items).map(tr => parseFloat(tr.querySelector('.discount').value||0)),
+    taxrates:  Array.from(items).map(tr => { const t = tr.querySelector('.taxrate'); return parseFloat(t.tomselect ? t.tomselect.getValue() : t.value) || 0; }),
+    hsns:      Array.from(items).map(tr => tr.querySelector('.hsn').value.trim()),
+    amounts:   Array.from(items).map(tr => parseFloat(tr.querySelector('.amount').value||0)),
+    sub_particulars: Array.from(items).map(tr => {
+        if (!IS_SERVICE) return '';
+        const subSel = tr.querySelector('.sub-particular');
+        return subSel && subSel.tomselect ? subSel.tomselect.getValue().trim() : '';
+    }),
+    tds_applicable: IS_SERVICE && (() => { const el = document.getElementById('tds_applicable'); return el && (el.tomselect ? el.tomselect.getValue() : el.value) === 'yes'; })(),
+    auto_generate:       tsGenType ? (tsGenType.getValue() === 'auto') : true,
+    manual_bill_no:      document.getElementById('manual_bill_no').value.trim(),
+    manual_invoice_date: rawDate,
+  };
+  const btn = document.getElementById('generateBtn');
+  btn.disabled = true;
+  sdLoading('Saving Document…', 'Generating PDF and saving records');
+  try {
+    const res = await fetch('/generate-invoice', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
+    if(res.ok) {
+      sdStep('Downloading PDF…');
+      const blob = await res.blob();
+      const a = document.createElement('a');
+      a.href = window.URL.createObjectURL(blob);
+      a.download = `Document_${clientName}_${Date.now()}.pdf`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => { loadOldInvoices(); loadClients(); }, 800);
+      sdSuccess('Document Saved', 'PDF downloaded successfully.', '', () => resetForm());
+    } else {
+      const err = await res.json();
+      sdError(err.error || 'Unknown error', 'Save Failed');
+    }
+  } catch(e) { sdError('Network error. Please try again.', 'Network Error'); console.error(e); }
+  finally { btn.disabled = false; }
+});
+
+async function downloadSingle(bno) {
+  sdLoading('Downloading Invoice…', 'Generating PDF');
+  try {
+    const res = await fetch(`/download-invoice/${encodeURIComponent(bno)}`);
+    if (res.ok) {
+      sdStep('Saving PDF…');
+      const blob = await res.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `Invoice_${bno.replace(/\//g,'_')}.pdf`;
+      document.body.appendChild(a); a.click(); a.remove();
+      sdSuccess('Invoice Downloaded', `${bno} saved to your downloads folder.`);
+    } else {
+      sdError('Could not generate invoice PDF.', 'Download Failed');
+    }
+  } catch(e) { sdError('Network error: ' + e.message, 'Download Failed'); }
+}
+async function emailSingle(bno) {
+  const ok = await sdConfirm(`Send invoice email to client for <strong>${bno}</strong>?`, 'Send Email', { okLabel: 'Send', cancelLabel: 'Cancel' });
+  if (!ok) return;
+  sdLoading('Sending Email…', 'Connecting to mail server');
+  try {
+    const r = await fetch(`/email-invoice/${encodeURIComponent(bno)}`, { method: 'POST' });
+    const d = await r.json();
+    sdDismiss();
+    if (r.ok) sdSuccess('Email Sent', d.message || 'Invoice emailed successfully.');
+    else sdError(d.error || d.message || 'Failed to send email.', 'Email Failed');
+  } catch(e) { sdDismiss(); sdError('Network error — could not send email.', 'Network Error'); }
+}
+async function downloadZip() {
+  const sel = Array.from(document.querySelectorAll('.hist-checkbox:checked')).map(cb=>cb.value);
+  if (!sel.length) { sdAlert('Select at least one document first.', 'Nothing Selected'); return; }
+  sdLoading('Preparing ZIP…', `Bundling ${sel.length} document${sel.length > 1 ? 's' : ''}…`);
+  try {
+    const res = await fetch('/download-zip',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({bill_nos:sel})});
+    if (res.ok) {
+      sdStep('Downloading ZIP…');
+      const b=await res.blob(); const a=document.createElement('a'); a.href=window.URL.createObjectURL(b); a.download='Documents.zip'; document.body.appendChild(a); a.click(); a.remove();
+      sdSuccess('Download Ready', `${sel.length} document${sel.length > 1 ? 's' : ''} downloaded as ZIP.`);
+    } else sdError('Could not generate ZIP. Please try again.', 'Download Failed');
+  } catch(e) { sdError('Network error — download failed.', 'Network Error'); }
+}
+
+function resetForm() {
+  isEditMode = false;
+  document.getElementById('editBanner').style.display = 'none';
+  document.getElementById('manual_bill_no').readOnly = false;
+  document.getElementById('manual_bill_no').style.background = '';
+  document.getElementById('manual_details').className = 'manual-block';
+  handleModeChange();
+  document.querySelectorAll('input').forEach(i => { if(i.type!=='radio'&&i.type!=='checkbox') i.value=''; });
+  document.getElementById('is_non_gst').checked = false;
+  document.getElementById('is_non_gst_mobile').checked = false;
+  
+  if(clientTomSelect) clientTomSelect.clear();
+  if(tsClientState) tsClientState.clear();
+  if(tsShipState) tsShipState.clear();
+  if(tsGenType) tsGenType.setValue('auto');
+
+  document.getElementById('itemsBody').innerHTML = '';
+  addRow();
+  calculateTotals();
+  updateBtnLabel();
+}
+
+/* ── RapidShyp B2B Shipment ─────────────────────────────────────────── */
+let shipProductsMap = {}; // name → { product_id, sku }
+let currentShipParticulars = [];
+(async () => {
+  try {
+    const r = await fetch('/products/list');
+    if (r.ok) {
+      const list = await r.json();
+      list.forEach(p => { shipProductsMap[p.name] = p; });
+    }
+  } catch {}
+})();
+
+function getShippedOrder(billNo) {
+  const inv = invoiceListCache.find(i => i.bill_no === billNo);
+  return (inv && (inv.rapidshyp_shipment_id || inv.shipment_id)) || null;
+}
+async function markAsShipped(billNo, shipmentId) {
+  try {
+    await fetch('/rapidshyp/mark-shipped', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bill_no: billNo, shipment_id: shipmentId }) });
+    const inv = invoiceListCache.find(i => i.bill_no === billNo);
+    if (inv) inv.rapidshyp_shipment_id = shipmentId;
+  } catch {}
+}
+
+function invoiceDateToISO(str) {
+  if (!str) return '';
+  const months = {Jan:'01',Feb:'02',Mar:'03',Apr:'04',May:'05',Jun:'06',Jul:'07',Aug:'08',Sep:'09',Oct:'10',Nov:'11',Dec:'12'};
+  const parts = str.split('-');
+  if (parts.length !== 3) return '';
+  return `${parts[2]}-${months[parts[1]] || '01'}-${parts[0].padStart(2,'0')}`;
+}
+
+function shipSyncAmounts() {
+  const total = parseFloat(document.getElementById('shipInvValue').value) || 0;
+  const isPrepaid = document.getElementById('shipPayType').value === 'PREPAID';
+  document.getElementById('shipPrepaidAmt').value    = isPrepaid ? total.toFixed(2) : '0.00';
+  document.getElementById('shipCollectAmt').value   = isPrepaid ? '0.00' : total.toFixed(2);
+}
+
+function generateRsOrderId(dateIso) {
+  const d = (dateIso || new Date().toISOString().slice(0, 10)).replace(/-/g, '');
+  const rand = String(Math.floor(1000 + Math.random() * 9000));
+  return `RS-${d}-${rand}`;
+}
+
+function openShipModal(billNo) {
+  const inv = invoiceListCache.find(i => i.bill_no === billNo);
+  if (!inv) { sdAlert('Invoice not found.', 'Not Found'); return; }
+
+  document.getElementById('shipModalTitle').textContent = `Create B2B Shipment — ${billNo}`;
+  document.getElementById('shipOrderId').value    = generateRsOrderId(invoiceDateToISO(inv.invoice_date));
+  document.getElementById('shipOrderDate').value  = invoiceDateToISO(inv.invoice_date);
+  document.getElementById('shipPickup').value     = RAPIDSHYP_PICKUP;
+  document.getElementById('shipStore').value      = RAPIDSHYP_STORE;
+  document.getElementById('shipPayType').value    = 'PREPAID';
+
+  // Shipping address (prefer shipto_* fields, fall back to billing)
+  document.getElementById('shipToName').value      = inv.shipto_name     || inv.client_name    || '';
+  document.getElementById('shipToCompany').value   = inv.client_name     || '';
+  document.getElementById('shipToGSTIN').value     = inv.client_gstin    || '';
+  document.getElementById('shipToMobile').value    = inv.client_mobile   || '';
+  document.getElementById('shipToAddr1').value     = inv.shipto_address1 || inv.client_address1 || '';
+  document.getElementById('shipToAddr2').value     = inv.shipto_address2 || inv.client_address2 || '';
+  document.getElementById('shipToPincode').value   = inv.shipto_pincode  || inv.client_pincode  || '';
+
+  // Billing address
+  document.getElementById('shipBillName').value    = inv.client_name     || '';
+  document.getElementById('shipBillCompany').value = inv.client_name     || '';
+  document.getElementById('shipBillGSTIN').value   = inv.client_gstin    || '';
+  document.getElementById('shipBillMobile').value  = inv.client_mobile   || '';
+  document.getElementById('shipBillAddr1').value   = inv.client_address1 || '';
+  document.getElementById('shipBillAddr2').value   = inv.client_address2 || '';
+  document.getElementById('shipBillPincode').value = inv.client_pincode  || '';
+
+  // Emails — fall back to allClientsData lookup if not saved on invoice
+  const _clientKey   = Object.keys(allClientsData || {}).find(k => k.toLowerCase() === (inv.client_name || '').toLowerCase());
+  const _clientEmail = inv.client_email || (_clientKey && allClientsData[_clientKey] && allClientsData[_clientKey].email) || '';
+  console.log('[B2B email debug] client_name:', inv.client_name, '| inv.client_email:', inv.client_email, '| key found:', _clientKey, '| client email in DB:', _clientKey && allClientsData[_clientKey] && allClientsData[_clientKey].email, '| final:', _clientEmail);
+  document.getElementById('shipBillEmail').value = _clientEmail;
+  document.getElementById('shipToEmail').value   = inv.shipto_email || _clientEmail;
+
+  // Clear file input and status from any previous use
+  const fi = document.getElementById('shipInvoiceFile');
+  if (fi) fi.value = '';
+  const st = document.getElementById('shipAttachStatus');
+  if (st) { st.style.display = 'none'; st.textContent = ''; }
+
+  // Invoice details
+  document.getElementById('shipInvNo').value       = billNo;
+  document.getElementById('shipInvDate').value     = invoiceDateToISO(inv.invoice_date);
+  document.getElementById('shipInvValue').value    = inv.grand_total || 0;
+  document.getElementById('shipInvGST').value      = inv.client_gstin || '';
+  document.getElementById('shipPONo').value        = inv.po_number   || '';
+  document.getElementById('shipEwayNo').value      = '';
+  document.getElementById('shipEwayExpiry').value  = '';
+  shipSyncAmounts();
+
+  // Items table — look up SKU from products map
+  currentShipParticulars = (inv.particulars || []).map(p => String(p || '').split('\n')[0].trim()).filter(Boolean);
+  const tbody = document.getElementById('shipItemsBody');
+  tbody.innerHTML = '';
+  currentShipParticulars.forEach(name => addShipRow(name));
+  populateShipItemSelect();
+
+  document.getElementById('shipModal').style.display = 'flex';
+}
+
+function closeShipModal() {
+  document.getElementById('shipModal').style.display = 'none';
+}
+
+function addShipRow(name) {
+  const prod = shipProductsMap[name] || {};
+  const sku  = prod.product_id || name.replace(/[^a-zA-Z0-9]/g,'_').toUpperCase().slice(0, 40);
+  const wt   = prod.ship_wt != null ? prod.ship_wt : '';
+  const sl   = prod.ship_l  != null ? prod.ship_l  : '';
+  const sb   = prod.ship_b  != null ? prod.ship_b  : '';
+  const sh   = prod.ship_h  != null ? prod.ship_h  : '';
+  const tr   = document.createElement('tr');
+  tr.dataset.itemName = name;
+  tr.innerHTML = `
+    <td style="padding:6px 8px; font-size:12px; font-weight:600; max-width:160px; word-break:break-word;">${name || '—'}</td>
+    <td style="padding:4px;"><input type="text" value="${sku}" class="ship-sku input" style="width:100px; padding:4px 6px; font-size:11px; font-family:monospace;"></td>
+    <td style="padding:4px;"><input type="number" min="1" value="1" class="ship-boxes input" style="width:55px; padding:4px 6px; font-size:12px;"></td>
+    <td style="padding:4px;"><input type="number" min="0.1" step="0.1" value="${wt}" class="ship-weight input" placeholder="kg" style="width:65px; padding:4px 6px; font-size:12px;"></td>
+    <td style="padding:4px;"><input type="number" min="1" value="${sl}" class="ship-len input" placeholder="cm" style="width:55px; padding:4px 6px; font-size:12px;"></td>
+    <td style="padding:4px;"><input type="number" min="1" value="${sb}" class="ship-bre input" placeholder="cm" style="width:55px; padding:4px 6px; font-size:12px;"></td>
+    <td style="padding:4px;"><input type="number" min="1" value="${sh}" class="ship-hei input" placeholder="cm" style="width:55px; padding:4px 6px; font-size:12px;"></td>
+    <td style="padding:4px; text-align:center;"><button type="button" onclick="this.closest('tr').remove()" style="background:none; border:none; cursor:pointer; color:#ef4444; font-size:18px; line-height:1; padding:2px 6px;" title="Remove row">×</button></td>
+  `;
+  document.getElementById('shipItemsBody').appendChild(tr);
+}
+
+function populateShipItemSelect() {
+  const sel = document.getElementById('shipAddItemSelect');
+  if (!sel) return;
+  sel.innerHTML = currentShipParticulars.map(n => `<option value="${n.replace(/"/g,'&quot;')}">${n}</option>`).join('');
+}
+
+function addShipItem() {
+  const sel = document.getElementById('shipAddItemSelect');
+  if (!sel || !sel.value) return;
+  addShipRow(sel.value);
+}
+
+async function cancelB2BShipment(billNo) {
+  const shipmentId = getShippedOrder(billNo);
+  if (!shipmentId) return;
+  const ok = await sdConfirm(
+    `Cancel the shipment for <strong>${billNo}</strong>?<br><span style="font-size:12px;color:#9ca3af;font-family:monospace;">${shipmentId}</span><br><span style="font-size:12px;color:#9ca3af;">This will request cancellation in RapidShyp and unmark it here.</span>`,
+    'Cancel Shipment',
+    { okLabel: 'Yes, Cancel', cancelLabel: 'Keep Shipment' }
+  );
+  if (!ok) return;
+  sdLoading('Cancelling Shipment…', 'Contacting RapidShyp');
+  try {
+    const res  = await fetch('/rapidshyp/b2b-cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shipment_id: shipmentId }) });
+    const data = await res.json();
+    sdDismiss();
+    if (res.ok) {
+      await fetch('/rapidshyp/mark-shipped', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bill_no: billNo, shipment_id: null }) });
+      const inv = invoiceListCache.find(i => i.bill_no === billNo);
+      if (inv) inv.rapidshyp_shipment_id = null;
+      renderHistoryTable(invoiceListCache);
+      sdSuccess('Shipment Cancelled', 'The shipment has been cancelled in RapidShyp and unmarked in Sahayak.');
+    } else {
+      sdError(data.remarks || data.error || data.message || JSON.stringify(data), 'Cancel Failed');
+    }
+  } catch (e) {
+    sdDismiss();
+    sdError('Network error: ' + e.message, 'Network Error');
+  }
+}
+
+async function submitShipment() {
+  const btn       = document.getElementById('shipSubmitBtn');
+  const order_id  = document.getElementById('shipOrderId').value.trim();
+  const order_date = document.getElementById('shipOrderDate').value;
+  const pickup    = document.getElementById('shipPickup').value.trim();
+  const store     = document.getElementById('shipStore').value.trim() || 'DEFAULT';
+  const pay_type  = document.getElementById('shipPayType').value;
+
+  const sName    = document.getElementById('shipToName').value.trim();
+  const sCompany = document.getElementById('shipToCompany').value.trim();
+  const sGSTIN   = document.getElementById('shipToGSTIN').value.trim();
+  const sMobile  = document.getElementById('shipToMobile').value.trim().replace(/\D/g,'').slice(-10);
+  const sEmail   = document.getElementById('shipToEmail').value.trim();
+  const sAddr1   = document.getElementById('shipToAddr1').value.trim();
+  const sAddr2   = document.getElementById('shipToAddr2').value.trim();
+  const sPin     = document.getElementById('shipToPincode').value.trim().replace(/\D/g,'');
+
+  const bName    = document.getElementById('shipBillName').value.trim();
+  const bCompany = document.getElementById('shipBillCompany').value.trim();
+  const bGSTIN   = document.getElementById('shipBillGSTIN').value.trim();
+  const bMobile  = document.getElementById('shipBillMobile').value.trim().replace(/\D/g,'').slice(-10);
+  const bEmail   = document.getElementById('shipBillEmail').value.trim();
+  const bAddr1   = document.getElementById('shipBillAddr1').value.trim();
+  const bAddr2   = document.getElementById('shipBillAddr2').value.trim();
+  const bPin     = document.getElementById('shipBillPincode').value.trim().replace(/\D/g,'');
+
+  const invValue    = parseFloat(document.getElementById('shipInvValue').value)  || 0;
+  const prepaidAmt  = parseFloat(document.getElementById('shipPrepaidAmt').value) || 0;
+  const collectAmt  = parseFloat(document.getElementById('shipCollectAmt').value) || 0;
+  const invGST      = document.getElementById('shipInvGST').value.trim();
+  const ewayNo      = document.getElementById('shipEwayNo').value.trim();
+  const ewayExpiry  = document.getElementById('shipEwayExpiry').value;
+  const poNo        = document.getElementById('shipPONo').value.trim();
+
+  if (!pickup)               { sdAlert('Pickup Location is required.', 'Validation'); return; }
+  if (!sName)                { sdAlert('Shipping address: Name is required.', 'Validation'); return; }
+  if (sMobile.length !== 10) { sdAlert('Shipping address: Enter a valid 10-digit mobile number.', 'Validation'); return; }
+  if (sAddr1.length < 3)     { sdAlert('Shipping address: Address Line 1 must be at least 3 characters.', 'Validation'); return; }
+  if (sPin.length !== 6)     { sdAlert('Shipping address: Enter a valid 6-digit pincode.', 'Validation'); return; }
+
+  const itemRows = document.querySelectorAll('#shipItemsBody tr');
+  const item_lines = [];
+  let valid = true;
+  itemRows.forEach(tr => {
+    const name   = tr.querySelector('td:first-child').textContent.trim();
+    const sku    = tr.querySelector('.ship-sku').value.trim() || name;
+    const boxes  = parseInt(tr.querySelector('.ship-boxes').value)  || 0;
+    const weight = parseFloat(tr.querySelector('.ship-weight').value) || 0;
+    const len    = parseFloat(tr.querySelector('.ship-len').value) || 0;
+    const bre    = parseFloat(tr.querySelector('.ship-bre').value) || 0;
+    const hei    = parseFloat(tr.querySelector('.ship-hei').value) || 0;
+    if (!boxes || !weight || !len || !bre || !hei) { valid = false; return; }
+    item_lines.push({ product_name: name, sku, number_of_boxes: boxes, dead_weight_per_box: weight, length: len, breadth: bre, height: hei });
+  });
+  if (!valid || !item_lines.length) { sdAlert('Fill in SKU, Boxes, Weight and L×B×H for every item.', 'Validation'); return; }
+
+  const shipping_address = {
+    name: sName, mobile_number: sMobile,
+    ...(sCompany && { company_name: sCompany }),
+    ...(sGSTIN   && { gstin: sGSTIN }),
+    ...(sEmail   && { email_id: sEmail }),
+    address_line_1: sAddr1,
+    ...(sAddr2   && { address_line_2: sAddr2 }),
+    pincode: sPin,
+  };
+  const billing_address = {
+    name: bName || sName, mobile_number: bMobile || sMobile,
+    ...(bCompany && { company_name: bCompany }),
+    ...(bGSTIN   && { gstin: bGSTIN }),
+    ...((bEmail || sEmail) && { email_id: bEmail || sEmail }),
+    address_line_1: bAddr1 || sAddr1,
+    ...(bAddr2   && { address_line_2: bAddr2 }),
+    pincode: bPin || sPin,
+  };
+  const invoice = {
+    invoice_number: document.getElementById('shipInvNo').value.trim(),
+    invoice_date:   document.getElementById('shipInvDate').value,
+    invoice_value:  invValue,
+    ...(pay_type === 'COD' ? { prepaid_amount: prepaidAmt, collectable_amount: collectAmt } : {}),
+    ...(invGST    && { gst_number: invGST }),
+    ...(ewayNo    && { eway_bill_number: ewayNo }),
+    ...(ewayExpiry && { eway_bill_expiry_date: ewayExpiry }),
+    ...(poNo      && { po_number: poNo }),
+    item_lines,
+  };
+
+  const payload = { order_id, order_date, store_name: store, payment_type: pay_type, pickup_location: pickup, shipping_address, billing_address, invoices: [invoice] };
+
+  btn.disabled = true;
+  sdLoading('Creating B2B Shipment', 'Connecting to RapidShyp…');
+  try {
+    const res  = await fetch('/rapidshyp/b2b-order', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    const data = await res.json();
+    if (data.status === 'SUCCESS' || data.orderCreated) {
+      const createdOrderId = (data.shipment && data.shipment[0] && data.shipment[0].shipment_id)
+        || data.orderId || data.order_id || order_id;
+      const billNo = document.getElementById('shipInvNo').value.trim();
+      await markAsShipped(billNo, createdOrderId);
+
+      // Auto-attach invoice file if one was selected
+      let attachMsg = '';
+      const fileInput = document.getElementById('shipInvoiceFile');
+      if (fileInput && fileInput.files.length > 0) {
+        sdStep('Attaching invoice PDF…');
+        try {
+          const fd = new FormData();
+          fd.append('order_id', createdOrderId);
+          fd.append('invoice_file', fileInput.files[0]);
+          const ar = await fetch('/rapidshyp/attach-invoice', { method: 'POST', body: fd });
+          const ad = await ar.json();
+          attachMsg = ar.ok ? 'Invoice attached successfully.' : 'Invoice attachment failed.';
+          if (!ar.ok) console.warn('Invoice attachment failed:', ad);
+        } catch (ae) {
+          attachMsg = 'Invoice attachment failed.';
+          console.warn('Invoice attachment error:', ae.message);
+        }
+      }
+
+      // Save weight/dims per product for future auto-fill
+      try {
+        const dimRows = Array.from(document.querySelectorAll('#shipItemsBody tr')).map(tr => ({
+          name: tr.dataset.itemName,
+          wt:   tr.querySelector('.ship-weight') && tr.querySelector('.ship-weight').value,
+          l:    tr.querySelector('.ship-len')    && tr.querySelector('.ship-len').value,
+          b:    tr.querySelector('.ship-bre')    && tr.querySelector('.ship-bre').value,
+          h:    tr.querySelector('.ship-hei')    && tr.querySelector('.ship-hei').value,
+        })).filter(r => r.name && (r.wt || r.l || r.b || r.h));
+        if (dimRows.length) {
+          fetch('/products/save-ship-dims', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dimRows) })
+            .then(() => {
+              dimRows.forEach(r => {
+                if (!shipProductsMap[r.name]) shipProductsMap[r.name] = {};
+                if (r.wt) shipProductsMap[r.name].ship_wt = parseFloat(r.wt);
+                if (r.l)  shipProductsMap[r.name].ship_l  = parseFloat(r.l);
+                if (r.b)  shipProductsMap[r.name].ship_b  = parseFloat(r.b);
+                if (r.h)  shipProductsMap[r.name].ship_h  = parseFloat(r.h);
+              });
+            }).catch(() => {});
+        }
+      } catch {}
+
+      sdDismiss();
+      sdSuccess('Shipment Created!', attachMsg || 'Your B2B shipment is live on RapidShyp.', 'Shipment ID: ' + createdOrderId, () => { closeShipModal(); renderHistoryTable(invoiceListCache); });
+    } else {
+      sdDismiss();
+      sdError('RapidShyp: ' + (data.remarks || data.error || JSON.stringify(data)), 'Shipment Failed');
+    }
+  } catch (e) {
+    sdDismiss();
+    sdError('Network error: ' + e.message, 'Network Error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function openTrackModal(billNo) {
+  const shipmentId = getShippedOrder(billNo);
+  if (!shipmentId) { sdAlert('No shipment ID found for this invoice.', 'Error'); return; }
+  sdLoading('Fetching Tracking', 'Loading scan history from RapidShyp…');
+  try {
+    const res  = await fetch('/rapidshyp/tracking-info', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ shipmentID: shipmentId }),
+    });
+    const data = await res.json();
+    sdDismiss();
+    if (!data.success || !data.data || !data.data.length) {
+      sdError(data.msg || data.error || 'No tracking data returned.', 'Tracking Failed'); return;
+    }
+    const order = data.data[0];
+    const inv   = (order.invoices || []).find(i => i.shipment_id === shipmentId) || order.invoices[0] || {};
+    renderTrackModal(billNo, order, inv);
+    document.getElementById('trackModal').style.display = 'flex';
+  } catch (e) {
+    sdDismiss();
+    sdError('Network error: ' + e.message, 'Network Error');
+  }
+}
+
+async function downloadProxyLabel(encodedUrl, filename, labelName) {
+  sdLoading('Downloading ' + labelName, 'Fetching PDF from RapidShyp…');
+  try {
+    const res = await fetch('/rapidshyp/proxy-pdf?url=' + encodedUrl);
+    if (res.ok) {
+      sdStep('Saving PDF…');
+      const blob = await res.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      sdSuccess(labelName + ' Downloaded', filename + ' saved to your downloads folder.');
+    } else {
+      sdError('Could not download label PDF.', 'Download Failed');
+    }
+  } catch(e) { sdError('Network error: ' + e.message, 'Download Failed'); }
+}
+
+function renderTrackModal(billNo, order, inv) {
+  const status = inv.current_tracking_status_desc || order.order_status || '—';
+  const statusCode = inv.current_tracking_status_code || '';
+  const shipped = ['DEL','OFD','DLV'].includes(statusCode);
+  const cancelled = ['PCN','RTO','CAN'].includes(statusCode);
+  const statusColor = shipped ? '#16a34a' : cancelled ? '#dc2626' : '#d97706';
+
+  document.getElementById('trackTitle').textContent = `Track Shipment — ${billNo}`;
+
+  document.getElementById('trackBody').innerHTML = `
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:12px;">
+      <div><span style="color:var(--ink-4);">Shipment ID</span><br><b style="font-family:monospace;">${inv.shipment_id || '—'}</b></div>
+      <div><span style="color:var(--ink-4);">AWB</span><br><b style="font-family:monospace;">${inv.awb || '—'}</b></div>
+      <div><span style="color:var(--ink-4);">Courier</span><br><b>${inv.courierName || '—'}</b></div>
+      <div><span style="color:var(--ink-4);">Status</span><br><b style="color:${statusColor};">${status}</b></div>
+      ${inv.tracking_url ? `<div style="grid-column:1/-1;"><span style="color:var(--ink-4);">Tracking URL</span><br><a href="${inv.tracking_url}" target="_blank" style="color:#2563eb; font-size:12px; word-break:break-all;">${inv.tracking_url}</a></div>` : ''}
+    </div>
+    ${(inv.mps_label_url || inv.master_label_url) ? `
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px;">
+      ${inv.mps_label_url    ? `<button onclick="downloadProxyLabel('${encodeURIComponent(inv.mps_label_url)}','mps_label_${inv.shipment_id||''}.pdf','MPS Label')"    class="btn btn-ghost" style="font-size:11px; padding:4px 10px;">⬇ MPS Label</button>` : ''}
+      ${inv.master_label_url ? `<button onclick="downloadProxyLabel('${encodeURIComponent(inv.master_label_url)}','master_label_${inv.shipment_id||''}.pdf','Master Label')" class="btn btn-ghost" style="font-size:11px; padding:4px 10px;">⬇ Master Label</button>` : ''}
+    </div>` : ''}
+    <div style="border-top:1px solid var(--border); padding-top:10px; margin-top:4px;">
+      <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--ink-4); margin-bottom:10px;">Scan History</div>
+      ${!(inv.track_scans && inv.track_scans.length)
+        ? '<div style="color:var(--ink-4); font-size:12px;">No scan events yet.</div>'
+        : `<div style="display:flex; flex-direction:column; gap:0;">
+            ${[...inv.track_scans].reverse().map((s, idx) => `
+              <div style="display:flex; gap:12px; align-items:flex-start;">
+                <div style="display:flex; flex-direction:column; align-items:center; gap:0; min-width:16px;">
+                  <div style="width:10px; height:10px; border-radius:50%; background:${idx===0 ? statusColor : 'var(--border)'}; border:2px solid ${idx===0 ? statusColor : 'var(--ink-4)'}; flex-shrink:0; margin-top:3px;"></div>
+                  ${idx < inv.track_scans.length - 1 ? '<div style="width:2px; flex:1; background:var(--border); min-height:18px;"></div>' : ''}
+                </div>
+                <div style="padding-bottom:12px;">
+                  <div style="font-size:12px; font-weight:600; color:var(--ink);">${s.scan}</div>
+                  <div style="font-size:11px; color:var(--ink-4);">${s.scan_datetime}${s.scan_location ? ' · ' + s.scan_location : ''}</div>
+                </div>
+              </div>`).join('')}
+          </div>`}
+    </div>`;
+}
+
+function closeTrackModal() { document.getElementById('trackModal').style.display = 'none'; }
+
+async function downloadLabel(billNo) {
+  const shipmentId = getShippedOrder(billNo);
+  if (!shipmentId) { sdAlert('No shipment ID found for this invoice.', 'Error'); return; }
+  sdLoading('Fetching Label', 'Requesting label from RapidShyp…');
+  try {
+    const res = await fetch('/rapidshyp/get-label', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ shipment_id: shipmentId }),
+    });
+    const ct = res.headers.get('content-type') || '';
+    if (ct.includes('pdf') || ct.includes('octet-stream')) {
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href = url; a.download = `label_${shipmentId}.pdf`; a.click();
+      URL.revokeObjectURL(url);
+      sdDismiss();
+      sdSuccess('Label Downloaded', `Label PDF for shipment ${shipmentId} downloaded.`);
+    } else {
+      const data = await res.json();
+      sdDismiss();
+      if (data.status === true || data.status === 'SUCCESS') {
+        const ld = data.labelData || {};
+        function triggerLabelDownload(url, name) {
+          const a = document.createElement('a');
+          a.href = '/rapidshyp/proxy-pdf?url=' + encodeURIComponent(url);
+          a.download = name;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        }
+        const sid = ld.shipmentId || shipmentId;
+        if (ld.mps_label_url)    triggerLabelDownload(ld.mps_label_url,    'mps_label_' + sid + '.pdf');
+        if (ld.master_label_url) setTimeout(() => triggerLabelDownload(ld.master_label_url, 'master_label_' + sid + '.pdf'), 600);
+        if (ld.mps_label_url || ld.master_label_url) {
+          setTimeout(() => sdSuccess('Labels Downloading', 'MPS and Master label PDFs are saving to your downloads folder.'), 700);
+        } else {
+          sdSuccess('Label Generated', data.remarks || 'Label generated — check RapidShyp dashboard.');
+        }
+      } else {
+        sdError(data.remarks || data.error || JSON.stringify(data), 'Label Failed');
+      }
+    }
+  } catch (e) {
+    sdDismiss();
+    sdError('Network error: ' + e.message, 'Network Error');
+  }
+}
+
+function openAwbModal(billNo) {
+  const shipmentId = getShippedOrder(billNo);
+  if (!shipmentId) { sdAlert('No shipment ID found for this invoice.', 'Error'); return; }
+  document.getElementById('awbShipmentId').value  = shipmentId;
+  document.getElementById('awbCourierCode').value = '';
+  document.getElementById('awbModal').style.display = 'flex';
+}
+function closeAwbModal() { document.getElementById('awbModal').style.display = 'none'; }
+async function submitAwb() {
+  const shipmentId  = document.getElementById('awbShipmentId').value.trim();
+  const courierCode = document.getElementById('awbCourierCode').value.trim();
+  if (!shipmentId) return;
+  const body = { shipment_id: shipmentId };
+  if (courierCode) body.courier_code = courierCode;
+  closeAwbModal();
+  sdLoading('Assigning AWB', 'Connecting to RapidShyp…');
+  try {
+    const res  = await fetch('/rapidshyp/b2b-assign-awb', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const data = await res.json();
+    sdDismiss();
+    if (data.status === true || data.status === 'SUCCESS') {
+      sdSuccess('AWB Assigned', data.remarks || 'AWB assigned successfully to the courier partner.');
+    } else {
+      sdError(data.remarks || data.error || JSON.stringify(data), 'AWB Assignment Failed');
+    }
+  } catch (e) {
+    sdDismiss();
+    sdError('Network error: ' + e.message, 'Network Error');
+  }
+}
+
+/* _sd engine, sdAlert/sdConfirm/sdLoading etc. are provided globally by _shell_end.html */
+</script>
+
+<!-- RapidShyp B2B Shipment Modal -->
+<div id="shipModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:9999; align-items:center; justify-content:center; padding:16px;">
+  <div style="background:var(--surface); border-radius:var(--radius); width:100%; max-width:720px; max-height:92vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,.3);">
+
+    <div style="padding:18px 20px 14px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; position:sticky; top:0; background:var(--surface); z-index:1;">
+      <svg width="18" height="18" fill="none" stroke="#f97316" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+      <span id="shipModalTitle" style="font-weight:700; font-size:15px; color:var(--ink);">Create B2B Shipment</span>
+      <button onclick="closeShipModal()" style="margin-left:auto; background:none; border:none; cursor:pointer; color:var(--ink-3); font-size:22px; line-height:1;">&times;</button>
+    </div>
+
+    <div style="padding:16px 20px; display:flex; flex-direction:column; gap:14px;">
+
+      <!-- Order Meta -->
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:10px;">
+        <div><div class="field-label">Order ID</div><input id="shipOrderId" class="input" type="text" style="font-family:monospace; font-size:12px;" placeholder="Auto-generated"></div>
+        <div><div class="field-label">Order Date</div><input id="shipOrderDate" class="input" type="date"></div>
+        <div>
+          <div class="field-label">Payment Type</div>
+          <select id="shipPayType" class="input" onchange="shipSyncAmounts()">
+            <option value="PREPAID">PREPAID</option>
+            <option value="COD">COD</option>
+          </select>
+        </div>
+        <div><div class="field-label">Pickup Location *</div><input id="shipPickup" class="input" type="text" placeholder="e.g. Warehouse1"></div>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+        <div><div class="field-label">Store Name</div><input id="shipStore" class="input" type="text" placeholder="DEFAULT"></div>
+      </div>
+
+      <!-- Shipping Address -->
+      <div style="border:1px solid var(--border); border-radius:var(--radius-sm); padding:12px;">
+        <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--ink-muted); margin-bottom:10px;">Shipping Address (Ship To / Consignee)</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+          <div><div class="field-label">Name *</div><input id="shipToName" class="input" type="text"></div>
+          <div><div class="field-label">Company Name</div><input id="shipToCompany" class="input" type="text" placeholder="Optional"></div>
+          <div><div class="field-label">Mobile * (10 digits)</div><input id="shipToMobile" class="input" type="text" maxlength="10"></div>
+          <div><div class="field-label">Email</div><input id="shipToEmail" class="input" type="email" placeholder="Optional"></div>
+          <div><div class="field-label">GSTIN</div><input id="shipToGSTIN" class="input" type="text" placeholder="Optional"></div>
+          <div><div class="field-label">Address Line 1 *</div><input id="shipToAddr1" class="input" type="text"></div>
+          <div><div class="field-label">Address Line 2</div><input id="shipToAddr2" class="input" type="text" placeholder="Optional"></div>
+          <div><div class="field-label">Pincode * (6 digits)</div><input id="shipToPincode" class="input" type="text" maxlength="6"></div>
+        </div>
+      </div>
+
+      <!-- Billing Address -->
+      <div style="border:1px solid var(--border); border-radius:var(--radius-sm); padding:12px;">
+        <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--ink-muted); margin-bottom:10px;">Billing Address (Bill To)</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+          <div><div class="field-label">Name *</div><input id="shipBillName" class="input" type="text"></div>
+          <div><div class="field-label">Company Name</div><input id="shipBillCompany" class="input" type="text" placeholder="Optional"></div>
+          <div><div class="field-label">Mobile * (10 digits)</div><input id="shipBillMobile" class="input" type="text" maxlength="10"></div>
+          <div><div class="field-label">Email</div><input id="shipBillEmail" class="input" type="email" placeholder="Optional"></div>
+          <div><div class="field-label">GSTIN</div><input id="shipBillGSTIN" class="input" type="text" placeholder="Optional"></div>
+          <div><div class="field-label">Address Line 1 *</div><input id="shipBillAddr1" class="input" type="text"></div>
+          <div><div class="field-label">Address Line 2</div><input id="shipBillAddr2" class="input" type="text" placeholder="Optional"></div>
+          <div><div class="field-label">Pincode * (6 digits)</div><input id="shipBillPincode" class="input" type="text" maxlength="6"></div>
+        </div>
+      </div>
+
+      <!-- Invoice Details -->
+      <div style="border:1px solid var(--border); border-radius:var(--radius-sm); padding:12px;">
+        <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--ink-muted); margin-bottom:10px;">Invoice Details</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
+          <div><div class="field-label">Invoice Number</div><input id="shipInvNo" class="input" type="text" readonly style="background:var(--surface-2); font-family:monospace; font-size:12px;"></div>
+          <div><div class="field-label">Invoice Date</div><input id="shipInvDate" class="input" type="date" readonly style="background:var(--surface-2);"></div>
+          <div><div class="field-label">Invoice Value (₹ inc GST)</div><input id="shipInvValue" class="input" type="number" readonly style="background:var(--surface-2);" onchange="shipSyncAmounts()"></div>
+          <div><div class="field-label">Prepaid Amount (₹)</div><input id="shipPrepaidAmt" class="input" type="number" step="0.01"></div>
+          <div><div class="field-label">Collectable Amount (₹)</div><input id="shipCollectAmt" class="input" type="number" step="0.01"></div>
+          <div><div class="field-label">GST Number</div><input id="shipInvGST" class="input" type="text" placeholder="Buyer GSTIN (optional)"></div>
+          <div><div class="field-label">Eway Bill Number</div><input id="shipEwayNo" class="input" type="text" placeholder="Optional"></div>
+          <div><div class="field-label">Eway Bill Expiry</div><input id="shipEwayExpiry" class="input" type="date" placeholder="Optional"></div>
+          <div><div class="field-label">PO Number</div><input id="shipPONo" class="input" type="text" placeholder="Optional"></div>
+        </div>
+      </div>
+
+      <!-- Invoice Attachment -->
+      <div style="border:1px solid var(--border); border-radius:var(--radius-sm); padding:12px;">
+        <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--ink-muted); margin-bottom:8px;">Attach Invoice (Optional)</div>
+        <div style="display:flex; align-items:center; gap:12px;">
+          <input id="shipInvoiceFile" type="file" accept=".pdf,.png,.jpeg,.jpg" class="input" style="flex:1; padding:6px;">
+          <span style="font-size:11px; color:var(--ink-muted); white-space:nowrap;">PDF · PNG · JPEG · max 10 MB</span>
+        </div>
+        <div id="shipAttachStatus" style="font-size:12px; color:var(--ink-muted); margin-top:6px; display:none;"></div>
+      </div>
+
+      <!-- Items / Box Details -->
+      <div style="border:1px solid var(--border); border-radius:var(--radius-sm); overflow:hidden;">
+        <div style="padding:8px 12px; background:var(--surface-2); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--ink-muted);">Product / Box Details</div>
+        <div style="overflow-x:auto;">
+          <table style="width:100%; border-collapse:collapse; font-size:12px;">
+            <thead>
+              <tr style="background:var(--surface-2);">
+                <th style="padding:6px 8px; text-align:left; font-weight:700; color:var(--ink-2);">Product</th>
+                <th style="padding:6px 8px; text-align:left; font-weight:700; color:var(--ink-2);">SKU *</th>
+                <th style="padding:6px 8px; text-align:center; font-weight:700; color:var(--ink-2);">Boxes</th>
+                <th style="padding:6px 8px; text-align:center; font-weight:700; color:var(--ink-2);">Wt/Box (kg)</th>
+                <th style="padding:6px 8px; text-align:center; font-weight:700; color:var(--ink-2);">L (cm)</th>
+                <th style="padding:6px 8px; text-align:center; font-weight:700; color:var(--ink-2);">B (cm)</th>
+                <th style="padding:6px 8px; text-align:center; font-weight:700; color:var(--ink-2);">H (cm)</th>
+                <th style="padding:6px 8px; width:32px;"></th>
+              </tr>
+            </thead>
+            <tbody id="shipItemsBody"></tbody>
+          </table>
+        </div>
+        <div style="padding:8px 12px; border-top:1px solid var(--border); display:flex; align-items:center; gap:8px; background:var(--surface-2);">
+          <select id="shipAddItemSelect" class="input" style="flex:1; font-size:12px; padding:4px 8px;"></select>
+          <button type="button" onclick="addShipItem()" class="btn btn-ghost" style="font-size:12px; padding:4px 12px; white-space:nowrap;">+ Add Row</button>
+        </div>
+      </div>
+
+    </div>
+
+    <div style="padding:14px 20px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:10px; position:sticky; bottom:0; background:var(--surface);">
+      <button onclick="closeShipModal()" class="btn btn-ghost">Cancel</button>
+      <button id="shipSubmitBtn" onclick="submitShipment()" class="btn btn-primary">Create B2B Shipment</button>
+    </div>
+  </div>
+</div>
+
+<!-- Tracking Info Modal -->
+<div id="trackModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:9999; align-items:center; justify-content:center; padding:16px;">
+  <div style="background:var(--surface); border-radius:var(--radius); width:100%; max-width:520px; max-height:86vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,.3);">
+    <div style="padding:16px 20px 12px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; position:sticky; top:0; background:var(--surface); z-index:1;">
+      <svg width="16" height="16" fill="none" stroke="#0891b2" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+      <span id="trackTitle" style="font-weight:700; font-size:14px; color:var(--ink);">Track Shipment</span>
+      <button onclick="closeTrackModal()" style="margin-left:auto; background:none; border:none; cursor:pointer; color:var(--ink-3); font-size:20px; line-height:1;">&times;</button>
+    </div>
+    <div id="trackBody" style="padding:16px 20px; display:flex; flex-direction:column; gap:14px;"></div>
+    <div style="padding:10px 20px; border-top:1px solid var(--border); display:flex; justify-content:flex-end;">
+      <button onclick="closeTrackModal()" class="btn btn-ghost">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Assign AWB Modal -->
+<div id="awbModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:9999; align-items:center; justify-content:center; padding:16px;">
+  <div style="background:var(--surface); border-radius:var(--radius); width:100%; max-width:380px; box-shadow:0 20px 60px rgba(0,0,0,.3);">
+    <div style="padding:16px 20px 12px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px;">
+      <svg width="16" height="16" fill="none" stroke="#2563eb" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
+      <span style="font-weight:700; font-size:14px; color:var(--ink);">Assign AWB</span>
+      <button onclick="closeAwbModal()" style="margin-left:auto; background:none; border:none; cursor:pointer; color:var(--ink-3); font-size:20px; line-height:1;">&times;</button>
+    </div>
+    <div style="padding:16px 20px; display:flex; flex-direction:column; gap:12px;">
+      <div>
+        <div class="field-label">Shipment ID</div>
+        <input id="awbShipmentId" class="input" type="text" readonly style="background:var(--surface-2); font-family:monospace; font-size:12px;">
+      </div>
+      <div>
+        <div class="field-label">Courier Code <span style="color:var(--ink-4); font-weight:400;">(optional)</span></div>
+        <input id="awbCourierCode" class="input" type="text" placeholder="e.g. 1111111">
+      </div>
+    </div>
+    <div style="padding:12px 20px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:10px;">
+      <button onclick="closeAwbModal()" class="btn btn-ghost">Cancel</button>
+      <button onclick="submitAwb()" class="btn btn-primary">Assign AWB</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

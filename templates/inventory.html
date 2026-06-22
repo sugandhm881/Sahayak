@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>Inventory — Sahayak ERP</title>
+{% include "_shell_head.html" %}
+<style>
+  .inv-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 18px; }
+  .inv-table { width: 100%; border-collapse: collapse; min-width: 640px; }
+  .inv-table th { text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--ink-3); padding: 10px 12px; background: var(--surface-2); border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .inv-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--ink-2); }
+  .inv-table td.num { font-family: 'JetBrains Mono', monospace; text-align: right; font-weight: 600; }
+  .inv-table tr:hover td { background: var(--surface-2); }
+  .inv-table tr:last-child td { border-bottom: none; }
+  .stock-pill { display: inline-block; padding: 2px 10px; border-radius: 99px; font-size: 11px; font-weight: 700; letter-spacing: 0.3px; font-family: 'JetBrains Mono', monospace; }
+  .stock-pill.ok   { background: var(--green-light); color: #065f46; }
+  .stock-pill.low  { background: #fff7ed; color: #9a3412; }
+  .stock-pill.out  { background: var(--red-light); color: #991b1b; }
+  .tab-bar { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 18px; overflow-x: auto; }
+  .tab { padding: 10px 18px; border: none; background: transparent; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--ink-3); border-bottom: 2px solid transparent; transition: var(--transition); font-family: inherit; white-space: nowrap; }
+  .tab:hover { color: var(--ink); }
+  .tab.active { color: #2563eb; border-bottom-color: #2563eb; }
+</style>
+</head>
+<body>
+{% set active_nav = 'inventory' %}
+{% set page_title = 'Inventory' %}
+{% set page_sub = 'Stock levels, movement ledger and adjustments' %}
+{% include "_shell_start.html" %}
+
+<div class="inv-stat-grid">
+  <div class="stat"><div class="stat-label">Total Items</div><div class="stat-value" id="statTotal">—</div></div>
+  <div class="stat success"><div class="stat-label">In Stock</div><div class="stat-value" id="statInStock">—</div></div>
+  <div class="stat warn"><div class="stat-label">Low Stock (≤ 5)</div><div class="stat-value" id="statLow">—</div></div>
+  <div class="stat danger"><div class="stat-label">Out of Stock</div><div class="stat-value" id="statOut">—</div></div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-title"><span class="dot" style="background:#3b82f6;"></span> Inventory</div>
+    <button class="btn btn-primary btn-sm" onclick="openAdjustModal()">
+      <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+      Manual Adjustment
+    </button>
+  </div>
+
+  <div style="padding: 16px 20px;">
+    <div class="tab-bar">
+      <button class="tab active" data-panel="stockPanel" onclick="switchInvTab(this)">Stock Levels</button>
+      <button class="tab" data-panel="ledgerPanel" onclick="switchInvTab(this)">Movement Ledger</button>
+      {% if current_user.is_master or 'easyecom' in (current_user.permissions or []) %}
+      <button class="tab" data-panel="easyecomPanel" onclick="switchInvTab(this); loadEasyecomStatus();">Easyecom Sync</button>
+      {% endif %}
+    </div>
+
+    <div id="stockPanel">
+      <div style="display:flex; gap: 10px; margin-bottom: 12px; flex-wrap:wrap;">
+        <input type="text" id="stockSearch" placeholder="Search item..." oninput="renderStock()" style="flex:1; min-width: 220px;">
+        <select id="stockFilter" style="min-width: 180px;">
+          <option value="all">All items</option>
+          <option value="in">In stock</option>
+          <option value="low">Low stock (≤ 5)</option>
+          <option value="out">Out of stock</option>
+        </select>
+      </div>
+      <div style="overflow-x:auto; max-height: 540px; border-radius: var(--radius-sm); border: 1px solid var(--border);">
+        <table class="inv-table">
+          <thead>
+            <tr>
+              <th style="width:110px;">SKU</th>
+              <th>Item Name</th>
+              <th style="text-align:right;">Current Stock</th>
+              <th style="text-align:center;">Status</th>
+              <th>Last Updated</th>
+              <th style="text-align:center;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="stockBody">
+            <tr><td colspan="6" style="text-align:center; padding: 36px; color: var(--ink-3);">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="easyecomPanel" style="display:none;">
+      <!-- Hit counter bar -->
+      <div id="ecStatusBar" style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:var(--radius-sm); padding:14px 16px; margin-bottom:14px; display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+        <div style="flex:1; min-width:200px;">
+          <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:#15803d; margin-bottom:4px;">API Hits This Month</div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <div style="flex:1; height:8px; background:#dcfce7; border-radius:99px; overflow:hidden;">
+              <div id="ecHitBar" style="height:100%; background:#16a34a; border-radius:99px; width:0%; transition:width .4s;"></div>
+            </div>
+            <span id="ecHitLabel" style="font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:700; color:#15803d; white-space:nowrap;">— / —</span>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn btn-sm" onclick="ecSync()" style="background:#15803d; color:#fff; border:none;" id="ecSyncBtn">
+            Pull from Easyecom
+          </button>
+          <button class="btn btn-sm" onclick="ecReconcile()" style="background:#6d28d9; color:#fff; border:none;" id="ecReconcileBtn">
+            Mark Reconciled
+          </button>
+        </div>
+      </div>
+
+      <!-- Pending adjustments table -->
+      <div id="ecPendingSection">
+        <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--ink-muted); margin-bottom:4px;">Pending Adjustments — enter these manually in Easyecom, then click Mark Reconciled</div>
+        <div style="border:1px solid var(--border); border-radius:var(--radius-sm); overflow:hidden;">
+          <table class="inv-table" id="ecPendingTable">
+            <thead>
+              <tr>
+                <th>Item Name</th>
+                <th>Easyecom SKU</th>
+                <th style="text-align:right;">Pending Qty Change</th>
+                <th style="text-align:center;">Direction</th>
+              </tr>
+            </thead>
+            <tbody id="ecPendingBody">
+              <tr><td colspan="4" style="text-align:center; padding:30px; color:var(--ink-3);">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="ledgerPanel" style="display:none;">
+      <div style="display:flex; gap: 10px; margin-bottom: 12px; flex-wrap:wrap;">
+        <select id="ledgerItemFilter" style="min-width: 240px;">
+          <option value="">All items</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="loadLedger()">Refresh</button>
+      </div>
+      <div style="overflow-x:auto; max-height: 540px; border-radius: var(--radius-sm); border: 1px solid var(--border);">
+        <table class="inv-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Ref Doc</th>
+              <th>Type</th>
+              <th>Item</th>
+              <th style="text-align:right;">Qty Change</th>
+              <th style="text-align:right;">Running Balance</th>
+            </tr>
+          </thead>
+          <tbody id="ledgerBody">
+            <tr><td colspan="6" style="text-align:center; padding: 36px; color: var(--ink-3);">Select an item or load all…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="skuModal" class="modal-backdrop" style="display:none;">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-header">
+      <div class="card-title"><span class="dot" style="background:#16a34a;"></span> Set Easyecom SKU</div>
+      <button class="modal-close" onclick="closeSkuModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <p id="skuModalItem" style="font-size:13px; color:var(--ink-2); margin-bottom:14px; line-height:1.5;"></p>
+      <div style="margin-bottom:16px;">
+        <label class="field-label">SKU Code</label>
+        <input type="text" id="skuModalInput" placeholder="e.g. TE-LB1" style="font-family:'JetBrains Mono',monospace; text-transform:uppercase;" oninput="this.value=this.value.toUpperCase()">
+        <div class="text-xs mt-sm" style="color:var(--ink-3);">Enter the SKU from your Easyecom product catalogue. Leave blank to remove.</div>
+      </div>
+      <div style="display:flex; gap:10px;">
+        <button type="button" class="btn btn-primary" style="flex:1;" onclick="saveSkuModal()">Save SKU</button>
+        <button type="button" class="btn btn-ghost" onclick="closeSkuModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="adjustModal" class="modal-backdrop" style="display:none;">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="card-title"><span class="dot" style="background:#f59e0b;"></span> Manual Stock Adjustment</div>
+      <button class="modal-close" onclick="closeAdjustModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <form id="adjustForm" onsubmit="submitAdjust(event)">
+        <div style="margin-bottom: 14px;">
+          <label class="field-label">Item Name</label>
+          <select id="adjustItem" required></select>
+        </div>
+        <div style="margin-bottom: 14px;">
+          <label class="field-label">Quantity Change (use + to add, - to remove)</label>
+          <input type="number" id="adjustQty" step="0.001" placeholder="e.g. 10 or -5" required>
+        </div>
+        <div style="margin-bottom: 14px;">
+          <label class="field-label">Reason</label>
+          <input type="text" id="adjustReason" placeholder="e.g. Physical count correction, damage, opening stock">
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%;">Save Adjustment</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% include "_shell_end.html" %}
+<script>
+let allStock = [];
+let allLedger = [];
+let tsStockFilter, tsLedgerItem, tsAdjustItem;
+
+function switchInvTab(el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  const panel = el.dataset.panel;
+  document.getElementById('stockPanel').style.display    = panel === 'stockPanel'    ? '' : 'none';
+  document.getElementById('ledgerPanel').style.display   = panel === 'ledgerPanel'   ? '' : 'none';
+  const ecPanel = document.getElementById('easyecomPanel');
+  if (ecPanel) ecPanel.style.display = panel === 'easyecomPanel' ? '' : 'none';
+  if (panel === 'ledgerPanel' && allLedger.length === 0) loadLedger();
+}
+
+function stockStatus(qty) {
+  const q = parseFloat(qty || 0);
+  if (q <= 0) return 'out';
+  if (q <= 5) return 'low';
+  return 'ok';
+}
+
+function renderStock() {
+  const search = (document.getElementById('stockSearch').value || '').toLowerCase();
+  const filter = tsStockFilter ? tsStockFilter.getValue() : 'all';
+  const tbody = document.getElementById('stockBody');
+  let filtered = allStock.filter(i => (i.item_name || '').toLowerCase().includes(search));
+  if (filter !== 'all') filtered = filtered.filter(i => stockStatus(i.current_stock) === filter);
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 36px; color: var(--ink-3);">No items.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = filtered.map(i => {
+    const q = parseFloat(i.current_stock || 0);
+    const status = stockStatus(q);
+    const label = status === 'out' ? 'Out' : (status === 'low' ? 'Low' : 'OK');
+    const dateStr = i.last_updated ? String(i.last_updated).slice(0, 10) : '—';
+    const nameEsc = String(i.item_name || '').replace(/"/g, '&quot;');
+    const skuVal  = i.easyecom_sku || '';
+    const skuCell = window._ecPerm
+      ? (skuVal
+          ? `<span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;color:#1d4ed8;cursor:pointer;" onclick="openSkuModal('${nameEsc}','${skuVal.replace(/'/g,"\\'")}')" title="Click to edit SKU">${skuVal}</span>`
+          : `<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px;color:var(--ink-3);" onclick="openSkuModal('${nameEsc}','')">+ Add SKU</button>`)
+      : (skuVal ? `<span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;">${skuVal}</span>` : '<span style="color:var(--ink-3);">—</span>');
+    return `<tr>
+      <td>${skuCell}</td>
+      <td style="font-weight:600; color: var(--ink);">${i.item_name || '—'}</td>
+      <td class="num">${q.toFixed(3)}</td>
+      <td style="text-align:center;"><span class="stock-pill ${status}">${label}</span></td>
+      <td style="color: var(--ink-3); font-size: 12px;">${dateStr}</td>
+      <td style="text-align:center;">
+        <button class="btn btn-ghost btn-sm" onclick="prefillAdjust('${nameEsc}')">Adjust</button>
+        <button class="btn btn-ghost btn-sm" onclick="viewItemLedger('${nameEsc}')">Ledger</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function updateStockStats() {
+  let total = allStock.length, inStock = 0, low = 0, out = 0;
+  allStock.forEach(i => {
+    const s = stockStatus(i.current_stock);
+    if (s === 'out') out++;
+    else if (s === 'low') { low++; inStock++; }
+    else inStock++;
+  });
+  document.getElementById('statTotal').textContent = total;
+  document.getElementById('statInStock').textContent = inStock;
+  document.getElementById('statLow').textContent = low;
+  document.getElementById('statOut').textContent = out;
+}
+
+async function loadStock() {
+  try {
+    const res = await fetch('/inventory/list');
+    allStock = await res.json();
+    allStock.sort((a, b) => String(a.item_name || '').localeCompare(String(b.item_name || '')));
+    updateStockStats();
+    renderStock();
+    // populate item dropdowns
+    const opts = [{value:'', text:'All items'}, ...allStock.map(i => ({value: i.item_name, text: i.item_name}))];
+    if (tsLedgerItem) { tsLedgerItem.clearOptions(); opts.forEach(o => tsLedgerItem.addOption(o)); tsLedgerItem.refreshOptions(false); }
+    if (tsAdjustItem) { tsAdjustItem.clearOptions(); allStock.forEach(i => tsAdjustItem.addOption({value: i.item_name, text: i.item_name})); tsAdjustItem.refreshOptions(false); }
+  } catch (e) {
+    document.getElementById('stockBody').innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--red);padding:30px;">Failed to load inventory.</td></tr>';
+  }
+}
+
+async function loadLedger() {
+  const item = tsLedgerItem ? tsLedgerItem.getValue() : '';
+  const q = item ? ('?item=' + encodeURIComponent(item)) : '';
+  try {
+    const res = await fetch('/inventory/ledger' + q);
+    allLedger = await res.json();
+    const tbody = document.getElementById('ledgerBody');
+    if (!allLedger.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 36px; color: var(--ink-3);">No movement yet.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = allLedger.map(r => {
+      const qtyChange = parseFloat(r.qty_change || 0);
+      const sign = qtyChange > 0 ? '+' : '';
+      const color = qtyChange > 0 ? '#059669' : (qtyChange < 0 ? '#dc2626' : 'var(--ink-3)');
+      return `<tr>
+        <td style="font-size:12px; color: var(--ink-3);">${r.date || '—'}</td>
+        <td style="font-family:'JetBrains Mono',monospace; font-size:12px;">${r.ref_doc_no || '—'}</td>
+        <td>${(r.doc_type || '').replace('_', ' ')}</td>
+        <td style="font-weight:600; color: var(--ink);">${r.item_name || '—'}</td>
+        <td class="num" style="color:${color};">${sign}${qtyChange.toFixed(3)}</td>
+        <td class="num">${parseFloat(r.running_balance || 0).toFixed(3)}</td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    document.getElementById('ledgerBody').innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--red);padding:30px;">Failed to load ledger.</td></tr>';
+  }
+}
+
+function viewItemLedger(name) {
+  document.querySelector('[data-panel="ledgerPanel"]').click();
+  if (tsLedgerItem) tsLedgerItem.setValue(name);
+}
+
+function openAdjustModal() { document.getElementById('adjustModal').style.display = 'flex'; }
+function closeAdjustModal() {
+  document.getElementById('adjustModal').style.display = 'none';
+  document.getElementById('adjustForm').reset();
+  if (tsAdjustItem) tsAdjustItem.clear();
+}
+function prefillAdjust(name) {
+  openAdjustModal();
+  if (tsAdjustItem) tsAdjustItem.setValue(name);
+  document.getElementById('adjustQty').focus();
+}
+
+async function submitAdjust(e) {
+  e.preventDefault();
+  const item = tsAdjustItem ? tsAdjustItem.getValue() : '';
+  const qty = document.getElementById('adjustQty').value;
+  const reason = document.getElementById('adjustReason').value;
+  if (!item) { sdAlert('Pick an item first.', 'Select Item'); return; }
+  sdLoading('Adjusting Stock…', '');
+  try {
+    const res = await fetch('/inventory/adjust', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ item_name: item, qty_change: qty, reason }),
+    });
+    const j = await res.json();
+    sdDismiss();
+    if (!res.ok) { sdError(j.error || 'Failed.', 'Adjust Failed'); return; }
+    closeAdjustModal();
+    await loadStock();
+    if (tsLedgerItem && tsLedgerItem.getValue() === item) loadLedger();
+  } catch (e) { sdDismiss(); sdError('Network error.', 'Error'); }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  tsStockFilter = new TomSelect('#stockFilter', { controlInput: null, onChange: renderStock });
+  tsLedgerItem = new TomSelect('#ledgerItemFilter', { controlInput: null, onChange: loadLedger, maxOptions: 500 });
+  tsAdjustItem = new TomSelect('#adjustItem', { create: true, persist: false, maxOptions: 500 });
+  await loadStock();
+});
+
+// ── Easyecom Sync Panel ───────────────────────────────────────────────────────
+let ecStatusCache = null;
+
+async function loadEasyecomStatus() {
+  const body = document.getElementById('ecPendingBody');
+  if (body) body.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--ink-3);">Loading…</td></tr>';
+  try {
+    const res  = await fetch('/easyecom/status');
+    const data = await res.json();
+    if (!res.ok) { renderEcError(data.error || 'Failed to load status.'); return; }
+    ecStatusCache = data;
+    renderEcStatus(data);
+  } catch (e) {
+    renderEcError('Network error: ' + e.message);
+  }
+}
+
+function renderEcStatus(data) {
+  const { hits, pending, configured } = data;
+  const bar   = document.getElementById('ecHitBar');
+  const label = document.getElementById('ecHitLabel');
+  if (bar && hits) {
+    const pct = Math.min(100, Math.round((hits.count / hits.limit) * 100));
+    bar.style.width  = pct + '%';
+    bar.style.background = pct >= 90 ? '#dc2626' : (pct >= 70 ? '#f59e0b' : '#16a34a');
+    label.textContent = `${hits.count} / ${hits.limit}`;
+    label.style.color = pct >= 90 ? '#dc2626' : '#15803d';
+  }
+
+  if (!configured) {
+    const statusBar = document.getElementById('ecStatusBar');
+    if (statusBar) statusBar.style.background = '#fef9c3';
+    const hint = document.createElement('div');
+    hint.style.cssText = 'font-size:12px; color:#92400e; width:100%;';
+    hint.textContent   = '⚠ Easyecom not configured — go to Settings → Integrations to add your API key.';
+    statusBar.appendChild(hint);
+  }
+
+  // Pending table
+  const body = document.getElementById('ecPendingBody');
+  if (!body) return;
+  if (!pending || !pending.length) {
+    body.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--ink-3);">No pending adjustments — all synced.</td></tr>';
+    return;
+  }
+  body.innerHTML = pending.map(p => {
+    const adj   = parseFloat(p.adj);
+    const color = adj > 0 ? '#059669' : '#dc2626';
+    const sign  = adj > 0 ? '+' : '';
+    const dir   = adj > 0 ? '▲ Add' : '▼ Deduct';
+    return `<tr>
+      <td style="font-weight:600;">${p.item_name || '—'}</td>
+      <td style="font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--ink-3);">${p.sku || '—'}</td>
+      <td style="text-align:right; font-family:'JetBrains Mono',monospace; font-weight:700; color:${color};">${sign}${adj}</td>
+      <td style="text-align:center; font-size:12px; color:${color};">${dir}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderEcError(msg) {
+  const body = document.getElementById('ecPendingBody');
+  if (body) body.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--red);">${msg}</td></tr>`;
+}
+
+async function ecSync() {
+  const btn = document.getElementById('ecSyncBtn');
+  btn.disabled = true;
+  sdLoading('Syncing Inventory…', 'Pulling stock from Easyecom');
+  try {
+    const res  = await fetch('/easyecom/sync', { method: 'POST' });
+    const data = await res.json();
+    sdDismiss();
+    if (!res.ok) { sdError(data.error || JSON.stringify(data), 'Easyecom Sync Error'); return; }
+    const created = data.created ? ` (${data.created} new items added)` : '';
+    sdSuccess('Sync Complete', `Pulled ${data.synced} items from Easyecom${created} — ${data.total} total.`);
+    await loadEasyecomStatus();
+    await loadStock();
+  } catch (e) {
+    sdDismiss(); sdError(e.message, 'Network Error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── Easyecom SKU mapping ────────────────────────────────────────────────────
+
+window._ecPerm = {{ 'true' if (current_user.is_master or 'easyecom' in (current_user.permissions or [])) else 'false' }};
+
+let _skuModalItem = '';
+
+function openSkuModal(itemName, currentSku) {
+  _skuModalItem = itemName;
+  document.getElementById('skuModalItem').textContent = itemName;
+  document.getElementById('skuModalInput').value = currentSku || '';
+  document.getElementById('skuModal').style.display = 'flex';
+  setTimeout(() => document.getElementById('skuModalInput').focus(), 50);
+}
+
+function closeSkuModal() {
+  document.getElementById('skuModal').style.display = 'none';
+  _skuModalItem = '';
+}
+
+async function saveSkuModal() {
+  const sku  = (document.getElementById('skuModalInput').value || '').trim().toUpperCase();
+  const name = _skuModalItem;
+  if (!name) return;
+  const btn = document.querySelector('#skuModal .btn-primary');
+  btn.disabled = true;
+  sdLoading('Saving SKU…', '');
+  try {
+    const res = await fetch('/inventory/set-easyecom-sku', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ item_name: name, sku }),
+    });
+    const d = await res.json();
+    sdDismiss();
+    if (d.ok) {
+      const item = allStock.find(i => i.item_name === name);
+      if (item) item.easyecom_sku = sku || null;
+      renderStock();
+      closeSkuModal();
+    } else { sdError(d.error || 'Unknown', 'Save Failed'); }
+  } catch (e) { sdDismiss(); sdError(e.message, 'Network Error'); }
+  finally { btn.disabled = false; btn.textContent = 'Save SKU'; }
+}
+
+document.getElementById('skuModal').addEventListener('click', function(e) {
+  if (e.target === this) closeSkuModal();
+});
+
+document.getElementById('skuModalInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') saveSkuModal();
+  if (e.key === 'Escape') closeSkuModal();
+});
+
+async function ecPush() {
+  const pending = ecStatusCache && ecStatusCache.pending;
+  if (!pending || !pending.length) { sdAlert('No pending adjustments to push.', 'Nothing to Push'); return; }
+  const ok = await sdConfirm(`Push <strong>${pending.length}</strong> pending adjustment(s) to Easyecom?<br><span style="font-size:12px;color:#9ca3af;">This uses 1 API hit.</span>`, 'Push to Easyecom', { okLabel: 'Push', cancelLabel: 'Cancel' });
+  if (!ok) return;
+  const btn = document.getElementById('ecPushBtn');
+  btn.disabled = true;
+  sdLoading('Pushing to Easyecom…', 'Sending inventory adjustments');
+  try {
+    const res  = await fetch('/easyecom/push', { method: 'POST' });
+    const data = await res.json();
+    sdDismiss();
+    if (!res.ok) { sdError(data.error || JSON.stringify(data), 'Easyecom Push Error'); return; }
+    const errMsg = data.errors && data.errors.length ? '<br><small style="color:#9ca3af;">Errors: ' + data.errors.join(', ') + '</small>' : '';
+    sdSuccess('Push Complete', `Pushed ${data.pushed} of ${data.total} adjustment(s) to Easyecom.${errMsg}`);
+    await loadEasyecomStatus();
+  } catch (e) {
+    sdDismiss(); sdError(e.message, 'Network Error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function ecReconcile() {
+  const pending = ecStatusCache && ecStatusCache.pending;
+  if (!pending || !pending.length) { sdAlert('No pending adjustments to clear.', 'Nothing to Clear'); return; }
+  const lines = pending.map(function(p) { return '<br>• ' + p.item_name + ' (' + p.sku + '): ' + (p.adj > 0 ? '+' : '') + p.adj; }).join('');
+  const ok = await sdConfirm('Mark the following as reconciled in Easyecom?' + lines + '<br><br><span style="font-size:12px;color:#9ca3af;">Only confirm after you have manually entered these in Easyecom.</span>', 'Mark Reconciled', { okLabel: 'Mark Reconciled', cancelLabel: 'Cancel' });
+  if (!ok) return;
+  const btn = document.getElementById('ecReconcileBtn');
+  btn.disabled = true;
+  sdLoading('Marking Reconciled…', 'Clearing pending adjustments');
+  try {
+    const res  = await fetch('/easyecom/reconcile', { method: 'POST' });
+    const data = await res.json();
+    sdDismiss();
+    if (!res.ok) { sdError(data.error || JSON.stringify(data), 'Error'); return; }
+    sdSuccess('Reconciled', `Cleared ${data.cleared} pending adjustment(s). Sahayak is now in sync with Easyecom.`);
+    await loadEasyecomStatus();
+  } catch (e) {
+    sdDismiss(); sdError(e.message, 'Network Error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+</script>
+</body>
+</html>

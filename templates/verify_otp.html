@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Two-Step Verification — Sahayak ERP</title>
+  {% include "_shell_head.html" %}
+</head>
+<body>
+  <div class="auth-wrap">
+    <div class="auth-card">
+      <div class="auth-accent"></div>
+      <div class="auth-body">
+
+        <div class="auth-icon-badge">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+          </svg>
+        </div>
+
+        <h1 class="auth-title">Security Check</h1>
+        <p class="auth-sub">
+          Enter the <strong>6-digit OTP</strong> sent to the Administrator's registered email to continue.
+        </p>
+
+        {% if error %}
+          <div class="alert alert-error mb-md">
+            <div>
+              <div class="font-bold">Authentication Failed</div>
+              <div>{{ error }}</div>
+            </div>
+          </div>
+        {% endif %}
+
+        <form method="POST" action="/verify-otp" class="auth-form">
+          <input type="text" name="otp" placeholder="000000" required maxlength="6" minlength="6"
+                 pattern="\d{6}" title="6-digit numeric code"
+                 autocomplete="one-time-code" inputmode="numeric" class="otp-input"
+                 oninput="this.value = this.value.replace(/\D/g, '').slice(0, 6)">
+          <button type="submit" class="btn btn-primary btn-lg" style="width:100%;" data-loading-title="Verifying…">
+            Verify &amp; Continue
+          </button>
+        </form>
+
+        <div class="auth-footer">
+          <a href="/login" class="flex items-center justify-between" style="justify-content:center; gap:6px;">
+            <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+            </svg>
+            Back to Login
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+{% include "_auth_loader.html" %}
+</body>
+</html>

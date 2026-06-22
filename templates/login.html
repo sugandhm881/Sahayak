@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Login — Sahayak ERP</title>
+  {% include "_shell_head.html" %}
+</head>
+<body>
+  <div class="auth-wrap">
+    <div class="auth-card">
+      <div class="auth-accent"></div>
+      <div class="auth-body">
+
+        <div class="auth-logo">
+          <img id="brandLogo" src="/static/Sahayak_logo.png" alt="Sahayak ERP">
+        </div>
+
+        <h1 class="auth-title" id="brandTitle">Welcome Back</h1>
+        <p class="auth-sub">Sign in to your Sahayak ERP workspace</p>
+
+        {% if error %}
+          <div class="alert alert-error mb-md">{{ error }}</div>
+        {% endif %}
+
+        <form method="POST" class="auth-form">
+          <div>
+            <label class="field-label">Username</label>
+            <input type="text" id="usernameInput" name="username" placeholder="your-tenant-id" required
+                   autocomplete="username" onblur="fetchBranding()">
+          </div>
+          <div>
+            <label class="field-label">Password</label>
+            <input type="password" name="password" placeholder="••••••••" required autocomplete="current-password">
+          </div>
+          <button type="submit" class="btn btn-primary btn-lg" style="width:100%; margin-top:6px;" data-loading-title="Signing In…">
+            Sign In
+          </button>
+        </form>
+
+        <div class="auth-footer">
+          <span class="text-xs text-muted">Secure login &middot; Two-step verification enabled</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const defaultLogo = "/static/Sahayak_logo.png";
+  const defaultTitle = "Welcome Back";
+
+  function fetchBranding() {
+    const username = document.getElementById('usernameInput').value.trim();
+    const logoImg = document.getElementById('brandLogo');
+    const titleText = document.getElementById('brandTitle');
+    if (!username) { resetBranding(); return; }
+    fetch(`/api/get-branding/${encodeURIComponent(username)}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.found) {
+          titleText.innerText = data.company_name || defaultTitle;
+          logoImg.src = data.logo_base64 ? ("data:image/png;base64," + data.logo_base64) : defaultLogo;
+        } else { resetBranding(); }
+      })
+      .catch(() => resetBranding());
+  }
+  function resetBranding() {
+    document.getElementById('brandLogo').src = defaultLogo;
+    document.getElementById('brandTitle').innerText = defaultTitle;
+  }
+  document.addEventListener("DOMContentLoaded", () => {
+    if (document.getElementById('usernameInput').value) fetchBranding();
+  });
+</script>
+{% include "_auth_loader.html" %}
+</body>
+</html>

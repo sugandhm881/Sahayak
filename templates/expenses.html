@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>Expenses — {{ profile.get('company_name', 'Sahayak ERP') }}</title>
+{% include "_shell_head.html" %}
+<style>
+.exp-table th { white-space: nowrap; }
+.exp-table td { vertical-align: middle; }
+.mode-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 20px;
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .3px;
+}
+.mode-cash   { background: #e8f5e9; color: #2e7d32; }
+.mode-bank   { background: #e3f2fd; color: #1565c0; }
+.mode-upi    { background: #f3e5f5; color: #6a1b9a; }
+.mode-cheque { background: #fff8e1; color: #f57f17; }
+.summary-bar {
+  display: flex; gap: 16px; flex-wrap: wrap; align-items: center;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px 18px; margin-bottom: 16px;
+}
+.summary-bar .s-item { font-size: 13px; color: var(--ink-2); }
+.summary-bar .s-val  { font-size: 18px; font-weight: 700; color: var(--ink); }
+.form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 600px) { .form-grid-2 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+{% set active_nav = 'expenses' %}
+{% set page_title = 'Expenses' %}
+{% set page_sub = 'Track all business expenses' %}
+{% include "_shell_start.html" %}
+
+<!-- Toolbar -->
+<div class="flex items-center gap-md mb-md" style="flex-wrap:wrap;">
+  <input id="expSearch" type="text" class="input" placeholder="Search vendor, category, note…"
+         style="flex:1; min-width:180px; max-width:300px;" oninput="filterExpenses()">
+  <select id="expModeFilter" class="input" data-no-enhance style="min-width:130px;" onchange="filterExpenses()">
+    <option value="">All Modes</option>
+    <option value="Cash">Cash</option>
+    <option value="Bank">Bank</option>
+    <option value="UPI">UPI</option>
+    <option value="Cheque">Cheque</option>
+  </select>
+  <select id="expAccountFilter" class="input" data-no-enhance style="min-width:160px;" onchange="filterExpenses()">
+    <option value="">All Categories</option>
+  </select>
+  <div style="display:flex; gap:8px; align-items:center;">
+    <input id="expFrom" type="date" class="input" style="width:140px;" onchange="filterExpenses()">
+    <span style="font-size:12px; color:var(--ink-muted);">to</span>
+    <input id="expTo" type="date" class="input" style="width:140px;" onchange="filterExpenses()">
+  </div>
+  <button class="btn btn-primary" onclick="openExpModal()">+ Add Expense</button>
+</div>
+
+<!-- Summary bar -->
+<div class="summary-bar" id="expSummary">
+  <div class="s-item">Total<br><span class="s-val" id="sTotalAll">₹0</span></div>
+  <div style="width:1px; background:var(--border); align-self:stretch;"></div>
+  <div class="s-item">Cash<br><span class="s-val" id="sTotalCash">₹0</span></div>
+  <div class="s-item">Bank<br><span class="s-val" id="sTotalBank">₹0</span></div>
+  <div class="s-item">UPI<br><span class="s-val" id="sTotalUpi">₹0</span></div>
+  <div class="s-item">Cheque<br><span class="s-val" id="sTotalCheque">₹0</span></div>
+</div>
+
+<!-- Table -->
+<div class="card">
+  <div style="overflow-x:auto;">
+    <table class="table exp-table" id="expTable">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Category</th>
+          <th>Vendor / Party</th>
+          <th>Note</th>
+          <th>Mode</th>
+          <th style="text-align:right;">Amount</th>
+          <th style="width:80px;"></th>
+        </tr>
+      </thead>
+      <tbody id="expTbody">
+        <tr><td colspan="7" class="text-center text-muted" style="padding:32px;">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Add / Edit Modal -->
+<div id="expModal" class="modal-backdrop hidden" onclick="if(event.target===this)closeExpModal()">
+  <div class="modal" style="max-width:520px; width:95%;">
+    <div class="modal-header">
+      <div class="modal-title" id="expModalTitle">Add Expense</div>
+      <button class="modal-close" onclick="closeExpModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="eId">
+      <div class="form-grid-2">
+        <div>
+          <label class="field-label">Date *</label>
+          <input id="eDate" type="date" class="input">
+        </div>
+        <div>
+          <label class="field-label">Amount (₹) *</label>
+          <input id="eAmount" type="number" min="0" step="0.01" class="input" placeholder="0.00">
+        </div>
+        <div>
+          <label class="field-label">Category</label>
+          <select id="eAccount" class="input" data-no-enhance>
+            <option value="EXP_GENERAL">General Expense</option>
+          </select>
+        </div>
+        <div>
+          <label class="field-label">Mode</label>
+          <select id="eMode" class="input" data-no-enhance>
+            <option value="Bank">Bank Transfer</option>
+            <option value="Cash">Cash</option>
+            <option value="UPI">UPI</option>
+            <option value="Cheque">Cheque</option>
+          </select>
+        </div>
+        <div style="grid-column:1/-1;">
+          <label class="field-label">Vendor / Party</label>
+          <input id="eVendor" type="text" class="input" placeholder="e.g. Reliance Jio, Amazon">
+        </div>
+        <div style="grid-column:1/-1;">
+          <label class="field-label">Note / Description</label>
+          <input id="eNote" type="text" class="input" placeholder="Brief description">
+        </div>
+      </div>
+      <div id="expModalErr" class="text-danger" style="display:none; margin-top:10px;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeExpModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveExpense()">Save Expense</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete confirm -->
+<div id="expDeleteModal" class="modal-backdrop hidden" onclick="if(event.target===this)closeExpDelete()">
+  <div class="modal" style="max-width:380px; width:95%;">
+    <div class="modal-header">
+      <div class="modal-title">Delete Expense</div>
+      <button class="modal-close" onclick="closeExpDelete()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p>Delete this expense of <strong id="expDeleteAmt"></strong>? This also removes the journal entry.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeExpDelete()">Cancel</button>
+      <button class="btn btn-danger" onclick="confirmExpDelete()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let allExpenses = [];
+let expAccounts = [];
+let expDeleteTarget = null;
+
+const MODE_CLASS = { Cash: 'mode-cash', Bank: 'mode-bank', UPI: 'mode-upi', Cheque: 'mode-cheque' };
+
+function escH(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmt(n) {
+  return '₹' + (parseFloat(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function fmtDate(d) {
+  if (!d) return '—';
+  const p = d.split('-');
+  if (p.length === 3) {
+    const mn = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return p[2] + '-' + (mn[parseInt(p[1],10)-1] || p[1]) + '-' + p[0];
+  }
+  return d;
+}
+
+function accountName(code) {
+  const a = expAccounts.find(x => x.code === code);
+  return a ? a.name : (code || 'General');
+}
+
+async function loadAccounts() {
+  try {
+    const r = await fetch('/v2/expense-accounts');
+    const j = await r.json();
+    expAccounts = j.rows || [];
+    const optHtml = expAccounts.map(a => `<option value="${escH(a.code)}">${escH(a.name)}</option>`).join('');
+    document.getElementById('eAccount').innerHTML = optHtml;
+    const filterOpts = '<option value="">All Categories</option>' +
+      expAccounts.map(a => `<option value="${escH(a.code)}">${escH(a.name)}</option>`).join('');
+    document.getElementById('expAccountFilter').innerHTML = filterOpts;
+  } catch(e) { console.warn('loadAccounts', e); }
+}
+
+async function loadExpenses() {
+  try {
+    const r = await fetch('/v2/expenses');
+    const j = await r.json();
+    allExpenses = (j.rows || []).sort((a,b) => (b.expense_date||'').localeCompare(a.expense_date||''));
+    renderExpenses(allExpenses);
+  } catch(e) {
+    document.getElementById('expTbody').innerHTML =
+      `<tr><td colspan="7" class="text-center text-danger">Failed to load: ${e.message}</td></tr>`;
+  }
+}
+
+function renderExpenses(list) {
+  const tbody = document.getElementById('expTbody');
+  updateSummary(list);
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted" style="padding:32px;">No expenses found. Click "+ Add Expense" to record one.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = list.map(x => {
+    const mc = MODE_CLASS[x.mode] || 'mode-bank';
+    return `<tr>
+      <td style="white-space:nowrap;">${escH(fmtDate(x.expense_date))}</td>
+      <td>${escH(accountName(x.account_code))}</td>
+      <td>${escH(x.vendor || '—')}</td>
+      <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+          title="${escH(x.note)}">${escH(x.note || '—')}</td>
+      <td><span class="mode-badge ${mc}">${escH(x.mode || 'Bank')}</span></td>
+      <td style="text-align:right; font-weight:600;">${escH(fmt(x.amount))}</td>
+      <td style="white-space:nowrap;">
+        <button class="btn btn-sm btn-secondary" onclick='editExpense(${JSON.stringify(x.expense_id)})'>Edit</button>
+        <button class="btn btn-sm btn-danger" onclick='promptExpDelete(${JSON.stringify(x.expense_id)},${JSON.stringify(x.amount)})' style="margin-left:4px;">Del</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function updateSummary(list) {
+  const totals = { Cash: 0, Bank: 0, UPI: 0, Cheque: 0 };
+  let grand = 0;
+  list.forEach(x => {
+    const a = parseFloat(x.amount) || 0;
+    grand += a;
+    if (totals[x.mode] !== undefined) totals[x.mode] += a;
+    else totals.Bank += a;
+  });
+  document.getElementById('sTotalAll').textContent    = fmt(grand);
+  document.getElementById('sTotalCash').textContent   = fmt(totals.Cash);
+  document.getElementById('sTotalBank').textContent   = fmt(totals.Bank);
+  document.getElementById('sTotalUpi').textContent    = fmt(totals.UPI);
+  document.getElementById('sTotalCheque').textContent = fmt(totals.Cheque);
+}
+
+function filterExpenses() {
+  const q    = document.getElementById('expSearch').value.toLowerCase();
+  const mode = document.getElementById('expModeFilter').value;
+  const acc  = document.getElementById('expAccountFilter').value;
+  const from = document.getElementById('expFrom').value;
+  const to   = document.getElementById('expTo').value;
+  const filtered = allExpenses.filter(x => {
+    if (mode && x.mode !== mode) return false;
+    if (acc  && x.account_code !== acc) return false;
+    if (from && x.expense_date < from) return false;
+    if (to   && x.expense_date > to)   return false;
+    if (q && !(
+      (x.vendor||'').toLowerCase().includes(q) ||
+      (x.note||'').toLowerCase().includes(q) ||
+      accountName(x.account_code).toLowerCase().includes(q)
+    )) return false;
+    return true;
+  });
+  renderExpenses(filtered);
+}
+
+function openExpModal(data) {
+  document.getElementById('expModalTitle').textContent = data ? 'Edit Expense' : 'Add Expense';
+  document.getElementById('eId').value      = data ? data.expense_id : '';
+  document.getElementById('eDate').value    = data ? (data.expense_date || '') : new Date().toISOString().slice(0,10);
+  document.getElementById('eAmount').value  = data ? (data.amount || '') : '';
+  document.getElementById('eAccount').value = data ? (data.account_code || 'EXP_GENERAL') : 'EXP_GENERAL';
+  document.getElementById('eMode').value    = data ? (data.mode || 'Bank') : 'Bank';
+  document.getElementById('eVendor').value  = data ? (data.vendor || '') : '';
+  document.getElementById('eNote').value    = data ? (data.note || '') : '';
+  document.getElementById('expModalErr').style.display = 'none';
+  document.getElementById('expModal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('eAmount').focus(), 60);
+}
+
+function closeExpModal() { document.getElementById('expModal').classList.add('hidden'); }
+
+function editExpense(id) {
+  const x = allExpenses.find(e => e.expense_id === id);
+  if (x) openExpModal(x);
+}
+
+async function saveExpense() {
+  const errEl = document.getElementById('expModalErr');
+  errEl.style.display = 'none';
+  const amount = parseFloat(document.getElementById('eAmount').value);
+  if (!amount || amount <= 0) { errEl.textContent = 'Enter a valid amount.'; errEl.style.display = ''; return; }
+  const date = document.getElementById('eDate').value;
+  if (!date) { errEl.textContent = 'Date is required.'; errEl.style.display = ''; return; }
+
+  const payload = {
+    expense_id:   document.getElementById('eId').value || undefined,
+    expense_date: date,
+    amount,
+    account_code: document.getElementById('eAccount').value,
+    mode:         document.getElementById('eMode').value,
+    vendor:       document.getElementById('eVendor').value.trim(),
+    note:         document.getElementById('eNote').value.trim(),
+  };
+
+  sdLoading('Saving Expense…', '');
+  try {
+    const r = await fetch('/v2/expenses', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const j = await r.json();
+    sdDismiss();
+    if (!r.ok) { errEl.textContent = j.error || 'Save failed'; errEl.style.display = ''; return; }
+    closeExpModal();
+    loadExpenses();
+  } catch(e) { sdDismiss(); errEl.textContent = e.message; errEl.style.display = ''; }
+}
+
+function promptExpDelete(id, amount) {
+  expDeleteTarget = id;
+  document.getElementById('expDeleteAmt').textContent = fmt(amount);
+  document.getElementById('expDeleteModal').classList.remove('hidden');
+}
+
+function closeExpDelete() {
+  expDeleteTarget = null;
+  document.getElementById('expDeleteModal').classList.add('hidden');
+}
+
+async function confirmExpDelete() {
+  if (!expDeleteTarget) return;
+  sdLoading('Deleting…', '');
+  try {
+    const r = await fetch('/v2/expenses/' + encodeURIComponent(expDeleteTarget), { method: 'DELETE' });
+    const j = await r.json();
+    sdDismiss();
+    if (!r.ok) { sdError(j.error || 'Delete failed', 'Delete Failed'); return; }
+    closeExpDelete();
+    loadExpenses();
+  } catch(e) { sdDismiss(); sdError(e.message, 'Error'); }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadAccounts();
+  loadExpenses();
+});
+</script>
+
+{% include "_shell_end.html" %}
+</body>
+</html>
