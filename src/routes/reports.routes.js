@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const router = express.Router();
 
 const { loginRequired } = require('../middleware/auth');
@@ -116,7 +116,7 @@ async function getAvailableFysForParty(req, party_name) {
   return sortedFys(fySet);
 }
 
-// Fallback ledger builder — raw invoices + payments filtered to a FY
+// Fallback ledger builder â€” raw invoices + payments filtered to a FY
 async function buildLedgerEntries(req, party_name, fy) {
   const pnLower = party_name.trim().toLowerCase();
   const invoices = await loadInvoices(req);
@@ -158,7 +158,7 @@ async function buildLedgerEntries(req, party_name, fy) {
     .map(({ iso, ...rest }) => rest);
 }
 
-// Primary ledger builder — journal_entries filtered to a FY
+// Primary ledger builder â€” journal_entries filtered to a FY
 async function buildLedgerFromJournal(req, party_name, fy) {
   const supabase = require('../config/supabase');
   const { getTenantId } = require('../middleware/tenant');
@@ -217,7 +217,7 @@ router.get('/download-ledger/:party_name(*)', loginRequired, async (req, res) =>
     try { result = await buildLedgerFromJournal(req, party_name, fy); } catch {}
     if (!result) result = await buildLedgerEntries(req, party_name, fy);
     const profile = await getSellerProfile(req);
-    const pdfBuf = await generateLedgerPdf(party_name, result.entries, profile);
+    const pdfBuf = await generateLedgerPdf(party_name, result, profile);
     const safeName = party_name.replace(/ /g, '_');
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="Ledger_${safeName}_${fy}.pdf"`);
@@ -279,3 +279,4 @@ router.get('/outstanding', loginRequired, async (req, res) => {
 
 module.exports = router;
 module.exports.computeOutstanding = computeOutstanding;
+
