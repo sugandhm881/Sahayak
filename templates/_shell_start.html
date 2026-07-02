@@ -1,4 +1,4 @@
-{# Variables expected: active_nav (str), page_title (str, optional), page_sub (str, optional) #}
+﻿{# Variables expected: active_nav (str), page_title (str, optional), page_sub (str, optional) #}
 <div class="shell">
 
   {# Mobile-only backdrop: tap to close the sidebar #}
@@ -14,7 +14,7 @@
           {% if profile.get('company_name') and profile.get('company_name') != 'Sahayak ERP' %}
             {{ profile.get('company_name') }}
           {% else %}
-            <span style="color:#f97316;">सहा</span>Yak ERP
+            <span style="color:#f97316;">à¤¸à¤¹à¤¾</span>Yak ERP
           {% endif %}
         </div>
         <div class="brand-sub">Billing &amp; Accounting</div>
@@ -42,7 +42,7 @@
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
         <span>New Purchase</span>
       </a>
-      {% if profile.get('invoice_type', 'goods') == 'goods' and (current_user.is_master or current_user.has_permission('inventory') or current_user.has_permission('purchase')) %}
+      {% if profile.get('invoice_type', 'goods') != 'service' and (current_user.is_master or current_user.has_permission('inventory') or current_user.has_permission('purchase')) %}
       <a href="/inventory" class="nav-item {% if active_nav == 'inventory' %}active{% endif %}">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
         <span>Inventory</span>
@@ -53,7 +53,7 @@
       {% if current_user.is_master or current_user.has_permission('products') or current_user.has_permission('purchase') or current_user.has_permission('sale') %}
       <a href="/products" class="nav-item {% if active_nav == 'products' %}active{% endif %}">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20.5 7.27l-8.5 4.92m0 0L3.5 7.27m8.5 4.92V21M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
-        <span>{% if profile.get('invoice_type') == 'service' %}Particulars{% else %}Products{% endif %}</span>
+        <span>{% if profile.get('invoice_type') == 'service' %}Particulars{% elif profile.get('invoice_type') == 'both' %}Products / Particulars{% else %}Products{% endif %}</span>
       </a>
       {% endif %}
 
@@ -119,3 +119,5 @@
     </div>
 
     <div class="page">
+
+
