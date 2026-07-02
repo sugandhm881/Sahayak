@@ -1,7 +1,7 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
-<title>New Document — {{ profile.get('company_name', 'Sahayak ERP') }}</title>
+<title>New Document â€” {{ profile.get('company_name', 'Sahayak ERP') }}</title>
 {% include "_shell_head.html" %}
 <style>
   /* Page-specific component overlays on top of app.css design system */
@@ -20,7 +20,7 @@
   input:focus, textarea:focus { border-color: #93c5fd; box-shadow: 0 0 0 3px rgba(59,130,246,0.12); }
   input[readonly] { background: var(--surface-2); color: var(--ink-3); cursor: not-allowed; }
 
-  /* ═══ TOM SELECT GLOBAL STYLING & WIDTH FIXES ═══ */
+  /* â•â•â• TOM SELECT GLOBAL STYLING & WIDTH FIXES â•â•â• */
   .ts-wrapper .ts-control { border-radius: var(--radius-sm) !important; border: 1px solid var(--border) !important; padding: 8.5px 12px !important; background: var(--surface) !important; box-shadow: none !important; font-size: 13px !important; font-family: 'Plus Jakarta Sans', sans-serif !important; min-height: 38px !important; transition: var(--transition); }
   .ts-wrapper.focus .ts-control { border-color: #93c5fd !important; box-shadow: 0 0 0 3px rgba(59,130,246,0.12) !important; }
   .ts-dropdown { border-radius: var(--radius-sm) !important; box-shadow: var(--shadow-lg) !important; font-family: 'Plus Jakarta Sans', sans-serif !important; margin-top: 4px !important; border: 1px solid var(--border) !important; z-index: 9999 !important; }
@@ -139,7 +139,7 @@
   .ship-to-section.hidden-service { display: none !important; }
   .rate-col-header { white-space: nowrap; }
 
-  /* ═══ MOBILE RESPONSIVE CSS ═══ */
+  /* â•â•â• MOBILE RESPONSIVE CSS â•â•â• */
   @media (max-width: 768px) {
     .app-shell { padding: 12px 10px 40px; }
     .topbar { flex-direction: column; align-items: stretch; padding: 16px; gap: 16px; }
@@ -190,11 +190,11 @@
 
 {% if _module == 'all' %}
 <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:14px; flex-wrap:wrap;">
-  <a href="/download-report" data-no-load onclick="saNavTo('/download-report','Downloading Report…','Generating Excel'); return false;" class="btn btn-ghost btn-sm">
+  <a href="/download-report" data-no-load onclick="saNavTo('/download-report','Downloading Reportâ€¦','Generating Excel'); return false;" class="btn btn-ghost btn-sm">
     <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
     Standard Excel
   </a>
-  <a href="/download-gstr1" data-no-load onclick="saNavTo('/download-gstr1','Exporting GSTR-1…','Generating Excel'); return false;" class="btn btn-ghost btn-sm" style="color:#059669; font-weight:700;">
+  <a href="/download-gstr1" data-no-load onclick="saNavTo('/download-gstr1','Exporting GSTR-1â€¦','Generating Excel'); return false;" class="btn btn-ghost btn-sm" style="color:#059669; font-weight:700;">
     <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
     GSTR-1 Export
   </a>
@@ -211,13 +211,13 @@
         {% if current_user.has_permission('sale') %}
         <label class="mode-pill active-sale" id="pillSale">
           <input type="radio" name="appMode" value="sale" checked onchange="handleModeChange()" style="display:none;">
-          🧾 Sale
+          ðŸ§¾ Sale
         </label>
         {% endif %}
         {% if current_user.has_permission('purchase') %}
         <label class="mode-pill" id="pillPurchase">
           <input type="radio" name="appMode" value="purchase" onchange="handleModeChange()" style="display:none;">
-          📦 Purchase
+          ðŸ“¦ Purchase
         </label>
         {% endif %}
       </div>
@@ -226,8 +226,24 @@
     <input type="radio" name="appMode" value="{{ _module }}" checked style="display:none;">
     {% endif %}
 
+    {% if profile.get('invoice_type') == 'both' %}
+    <div class="ctrl-group" id="invTypeToggleGroup">
+      <span class="ctrl-label">Invoice Type</span>
+      <div class="mode-pill-group">
+        <label class="mode-pill active-sale" id="pillGoods" onclick="switchInvoiceType('goods')" style="cursor:pointer;">
+          <input type="radio" name="invType" value="goods" checked style="display:none;">
+          ðŸ“¦ Goods
+        </label>
+        <label class="mode-pill" id="pillService" onclick="switchInvoiceType('service')" style="cursor:pointer;">
+          <input type="radio" name="invType" value="service" style="display:none;">
+          ðŸ’¼ Service
+        </label>
+      </div>
+    </div>
+    {% endif %}
+
     <div class="ctrl-group hidden md:block">
-      <span class="ctrl-label" style="visibility:hidden;">Tax</span> 
+      <span class="ctrl-label" style="visibility:hidden;">Tax</span>
       <label class="toggle-wrap">
         <input type="checkbox" id="is_non_gst">
         <span style="font-size:13px;font-weight:700;color:#92400e;">Non-GST Bill</span>
@@ -271,8 +287,8 @@
 
   <div id="editBanner" class="edit-banner" style="display:none;">
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-    Editing document — <strong id="editBannerDocNo" style="margin-left:4px;"></strong>
-    <button onclick="resetForm()" style="margin-left:auto;padding:4px 12px;border-radius:6px;background:#ede9fe;border:1px solid #c4b5fd;color:#5b21b6;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">✕ Cancel</button>
+    Editing document â€” <strong id="editBannerDocNo" style="margin-left:4px;"></strong>
+    <button onclick="resetForm()" style="margin-left:auto;padding:4px 12px;border-radius:6px;background:#ede9fe;border:1px solid #c4b5fd;color:#5b21b6;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">âœ• Cancel</button>
   </div>
 
   <div id="manual_details" class="manual-block">
@@ -289,7 +305,7 @@
   <div class="party-grid">
     <div class="party-block bill-to-block">
       <div class="party-block-header">
-        <span class="party-block-title" id="billToHeader">📋 Bill To (Client)</span>
+        <span class="party-block-title" id="billToHeader">ðŸ“‹ Bill To (Client)</span>
       </div>
       <div class="party-block-body">
         <div>
@@ -317,7 +333,7 @@
 
     <div class="party-block ship-to-block ship-to-section" id="shipToBlock">
       <div class="party-block-header">
-        <span class="party-block-title" id="shipToHeader">🚚 Ship To</span>
+        <span class="party-block-title" id="shipToHeader">ðŸšš Ship To</span>
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;font-weight:600;color:var(--ink-3);">
           <input type="checkbox" id="same_as_bill" onchange="toggleShipTo()" style="width:14px;height:14px;cursor:pointer;">
           Same as Bill To
@@ -346,7 +362,7 @@
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
       <span style="width:3px;height:16px;border-radius:2px;background:var(--accent-sale);display:inline-block;" id="itemAccentBar"></span>
       <span style="font-size:13px;font-weight:800;color:var(--ink);">Document Items</span>
-      <span id="serviceModeNotice" style="display:none;font-size:11px;font-weight:600;color:#7c3aed;background:#f5f3ff;padding:3px 10px;border-radius:99px;border:1px solid #c4b5fd;">💼 Service Mode</span>
+      <span id="serviceModeNotice" style="display:none;font-size:11px;font-weight:600;color:#7c3aed;background:#f5f3ff;padding:3px 10px;border-radius:99px;border:1px solid #c4b5fd;">ðŸ’¼ Service Mode</span>
     </div>
     <div class="items-table-wrap">
       <table class="items-table" id="itemsTable">
@@ -374,11 +390,11 @@
   <div style="padding:0 20px 24px;display:flex;justify-content:flex-end;">
     <div class="totals-panel-wrapper" style="width:100%;max-width:360px;display:flex;flex-direction:column;gap:14px;">
       <div class="totals-panel">
-        <div class="totals-row"><span>Taxable Amount</span><span>₹ <span id="subTotal">0.00</span></span></div>
-        <div class="totals-row"><span>IGST</span><span>₹ <span id="igst">0.00</span></span></div>
-        <div class="totals-row"><span>CGST</span><span>₹ <span id="cgst">0.00</span></span></div>
-        <div class="totals-row"><span>SGST</span><span>₹ <span id="sgst">0.00</span></span></div>
-        <div class="totals-row grand"><span>Grand Total</span><span>₹ <span id="grandTotal">0.00</span></span></div>
+        <div class="totals-row"><span>Taxable Amount</span><span>â‚¹ <span id="subTotal">0.00</span></span></div>
+        <div class="totals-row"><span>IGST</span><span>â‚¹ <span id="igst">0.00</span></span></div>
+        <div class="totals-row"><span>CGST</span><span>â‚¹ <span id="cgst">0.00</span></span></div>
+        <div class="totals-row"><span>SGST</span><span>â‚¹ <span id="sgst">0.00</span></span></div>
+        <div class="totals-row grand"><span>Grand Total</span><span>â‚¹ <span id="grandTotal">0.00</span></span></div>
       </div>
       <button id="generateBtn" class="generate-btn sale">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
@@ -422,7 +438,7 @@
       <table class="hist-table">
         <thead>
           <tr>
-            <th style="width:40px;text-align:center;">✓</th>
+            <th style="width:40px;text-align:center;">âœ“</th>
             <th>Doc Number</th>
             <th>Date</th>
             <th>Party</th>
@@ -435,7 +451,7 @@
           <tr>
             <td colspan="7" style="text-align:center;padding:36px;color:var(--ink-3);">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" style="width:32px;height:32px;margin:0 auto 8px;display:block;opacity:0.35;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-              Loading documents…
+              Loading documentsâ€¦
             </td>
           </tr>
         </tbody>
@@ -447,7 +463,17 @@
 {% include "_shell_end.html" %}
 <script>
 const INVOICE_TYPE = "{{ profile.get('invoice_type', 'goods') }}";
-const IS_SERVICE = (INVOICE_TYPE === 'service');
+let currentInvoiceType = (INVOICE_TYPE === 'both') ? 'goods' : INVOICE_TYPE;
+const IS_SERVICE = (INVOICE_TYPE === 'service'); // kept for legacy reference
+
+function switchInvoiceType(type) {
+  currentInvoiceType = type;
+  const pillGoods    = document.getElementById('pillGoods');
+  const pillService  = document.getElementById('pillService');
+  if (pillGoods)   pillGoods.className   = 'mode-pill' + (type === 'goods'   ? ' active-sale' : '');
+  if (pillService) pillService.className = 'mode-pill' + (type === 'service' ? ' active-sale' : '');
+  applyServiceMode();
+}
 const SELLER_STATE = "{{ profile.get('state', 'delhi') | lower }}";
 const CAN_SHIP = {{ ('true' if (current_user.is_master or current_user.has_permission('shipping')) else 'false') }};
 const RAPIDSHYP_PICKUP = "{{ profile.get('rapidshyp_pickup_location', '') }}";
@@ -465,7 +491,7 @@ const INDIAN_STATES = [
 
 const DOC_TYPES = {
   sale: [ {val:'invoice', text:'Tax Invoice'}, {val:'cn', text:'Credit Note / Return'} ],
-  purchase: [ {val:'po', text:'Purchase Order'}, {val:'grn', text:'GRN — Goods Receipt Note'}, {val:'bill', text:'Purchase Bill'}, {val:'dn', text:'Debit Note / Vendor Return'} ]
+  purchase: [ {val:'po', text:'Purchase Order'}, {val:'grn', text:'GRN â€” Goods Receipt Note'}, {val:'bill', text:'Purchase Bill'}, {val:'dn', text:'Debit Note / Vendor Return'} ]
 };
 
 const BTN_LABELS = {
@@ -587,7 +613,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   if (IS_LOCKED && tsHistMode) {
     tsHistMode.setValue(LOCKED_MODULE);
-    // lock the filter too — user is in a module-specific view
+    // lock the filter too â€” user is in a module-specific view
     const histFilterEl = document.getElementById('histModeFilter');
     if (histFilterEl) histFilterEl.closest('.history-filter-row').querySelector('.ts-wrapper').style.display = 'none';
   }
@@ -608,7 +634,7 @@ function applyServiceMode() {
   const subParticularWrappers = document.querySelectorAll('.sub-particular-wrapper');
   const tdsWrapper = document.getElementById('tds_wrapper');
 
-  if (IS_SERVICE) {
+  if (currentInvoiceType === 'service') {
     if (shipBlock) shipBlock.style.display = 'none';
     if (notice) notice.style.display = 'inline-flex';
     if (rateHeader) rateHeader.textContent = 'Rate (Excl. Tax)';
@@ -679,8 +705,8 @@ function handleModeChange() {
   const accentBar = document.getElementById('itemAccentBar');
   if(accentBar) accentBar.style.background = isSale ? 'var(--accent-sale)' : 'var(--accent-purchase)';
 
-  document.getElementById('billToHeader').textContent = isSale ? '📋 Bill To (Client)' : '🏭 Vendor Details';
-  document.getElementById('shipToHeader').textContent = isSale ? '🚚 Ship To' : '🏬 Ship To / Warehouse';
+  document.getElementById('billToHeader').textContent = isSale ? 'ðŸ“‹ Bill To (Client)' : 'ðŸ­ Vendor Details';
+  document.getElementById('shipToHeader').textContent = isSale ? 'ðŸšš Ship To' : 'ðŸ¬ Ship To / Warehouse';
   document.getElementById('client_name').placeholder  = isSale ? 'Client full name' : 'Vendor company name';
 
   rebuildClientSelect();
@@ -766,7 +792,7 @@ function rebuildClientSelect() {
   clientTomSelect = new TomSelect("#clientSelect", {
     options: partyOptions,
     create: true, sortField:{field:"text",direction:"asc"},
-    placeholder: "Search or type party name…",
+    placeholder: "Search or type party nameâ€¦",
     onChange: function(value) {
       if(!value) return;
       document.getElementById('client_name').value = value;
@@ -778,7 +804,7 @@ function rebuildClientSelect() {
         const c = data[actualKey];
         ['address1','address2','pincode','district','gstin','email','mobile'].forEach(f => document.getElementById('client_'+f).value = c[f]||'');
         if (tsClientState) tsClientState.setValue(c.state || '');
-        // Ship To — use saved shipto_* fields; fall back to billing fields if not set
+        // Ship To â€” use saved shipto_* fields; fall back to billing fields if not set
         document.getElementById('shipto_name').value     = value;
         document.getElementById('shipto_mobile').value   = c.mobile || '';
         document.getElementById('shipto_email').value    = c.email || '';
@@ -866,10 +892,10 @@ function renderHistoryTable(data) {
         <div style="font-weight:700;color:var(--ink);font-family:'JetBrains Mono',monospace;font-size:12.5px;">${inv.bill_no}${catBadge}</div>
         <span class="doc-badge ${cls}">${label}</span>
       </td>
-      <td style="font-size:12px;color:var(--ink-3);">${inv.invoice_date||'—'}</td>
-      <td style="font-weight:600;">${inv.client_name||'—'}</td>
-      <td style="text-align:right;font-family:'JetBrains Mono',monospace;font-weight:600;">₹${inv.grand_total ? inv.grand_total.toFixed(2) : '0.00'}</td>
-      <td style="text-align:center;">${status ? `<span class="status-badge status-${status}">${status}</span>` : '<span style="color:var(--ink-3);font-size:11px;">—</span>'}</td>
+      <td style="font-size:12px;color:var(--ink-3);">${inv.invoice_date||'â€”'}</td>
+      <td style="font-weight:600;">${inv.client_name||'â€”'}</td>
+      <td style="text-align:right;font-family:'JetBrains Mono',monospace;font-weight:600;">â‚¹${inv.grand_total ? inv.grand_total.toFixed(2) : '0.00'}</td>
+      <td style="text-align:center;">${status ? `<span class="status-badge status-${status}">${status}</span>` : '<span style="color:var(--ink-3);font-size:11px;">â€”</span>'}</td>
       <td>
         <div style="display:flex;align-items:center;justify-content:center;gap:3px;">
           ${showEdit && type!=='dn' && type!=='cn' ? `<button onclick="editInvoice('${inv.bill_no}')" class="act-btn" title="Edit"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="#6366f1" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>` : ''}
@@ -877,7 +903,7 @@ function renderHistoryTable(data) {
           <button onclick="emailSingle('${inv.bill_no}')" class="act-btn" title="Email Client"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="#10b981" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg></button>
           ${CAN_SHIP && cat === 'sale' && type === 'invoice' ? (getShippedOrder(inv.bill_no) ?
             `<div style="display:inline-flex;align-items:center;gap:3px;">
-               <span style="font-size:10px;font-weight:700;color:#16a34a;padding:2px 7px;background:#f0fdf4;border:1px solid #a7f3d0;border-radius:4px;white-space:nowrap;" title="RapidShyp: ${getShippedOrder(inv.bill_no)}">✓ Shipped</span>
+               <span style="font-size:10px;font-weight:700;color:#16a34a;padding:2px 7px;background:#f0fdf4;border:1px solid #a7f3d0;border-radius:4px;white-space:nowrap;" title="RapidShyp: ${getShippedOrder(inv.bill_no)}">âœ“ Shipped</span>
                <button onclick="openTrackModal('${inv.bill_no}')" class="act-btn" title="Track Shipment"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="#0891b2" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg></button>
                <button onclick="openAwbModal('${inv.bill_no}')" class="act-btn" title="Assign AWB"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="#2563eb" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg></button>
                <button onclick="cancelB2BShipment('${inv.bill_no}')" class="act-btn" title="Cancel B2B Shipment"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="#dc2626" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></button>
@@ -936,6 +962,7 @@ async function editInvoice(billNo) {
   const ok = await sdConfirm(`Load <strong>${billNo}</strong> for editing?<br><span style="font-size:12px;color:#9ca3af;">Stock changes will be skipped.</span>`, 'Load for Editing', { okLabel: 'Load', cancelLabel: 'Cancel' });
   if (!ok) return;
   isEditMode = true;
+  if (INVOICE_TYPE === 'both') switchInvoiceType(inv.invoice_type === 'service' ? 'service' : 'goods');
   const eb = document.getElementById('editBanner');
   eb.style.display = 'flex';
   document.getElementById('editBannerDocNo').textContent = billNo;
@@ -974,23 +1001,23 @@ async function editInvoice(billNo) {
   
   document.getElementById('itemsBody').innerHTML = '';
   (inv.particulars||[]).forEach((item, i) => {
-    const row = addRow();
-    const sel = row.querySelector('.particulars-select');
-    let mainText = item;
-    let subText = '';
-    if (IS_SERVICE && item.includes('\n')) {
-        const parts = item.split('\n');
-        mainText = parts[0];
-        subText = parts.slice(1).join('\n');
-    }
-    if(sel.tomselect) { sel.tomselect.addOption({value:mainText,text:mainText}); sel.tomselect.setValue(mainText, true); }
-    if (IS_SERVICE) {
-        const subSel = row.querySelector('.sub-particular');
-        if (subSel.tomselect) {
-            subSel.tomselect.addOption({value: subText, text: subText});
-            subSel.tomselect.setValue(subText, true);
-        }
-    }
+Â  Â  const row = addRow();
+Â  Â  const sel = row.querySelector('.particulars-select');
+Â  Â  let mainText = item;
+Â  Â  let subText = '';
+Â  Â  if (IS_SERVICE && item.includes('\n')) {
+Â  Â  Â  Â  const parts = item.split('\n');
+Â  Â  Â  Â  mainText = parts[0];
+Â  Â  Â  Â  subText = parts.slice(1).join('\n');
+Â  Â  }
+Â  Â  if(sel.tomselect) { sel.tomselect.addOption({value:mainText,text:mainText}); sel.tomselect.setValue(mainText, true); }
+Â  Â  if (IS_SERVICE) {
+Â  Â  Â  Â  const subSel = row.querySelector('.sub-particular');
+Â  Â  Â  Â  if (subSel.tomselect) {
+Â  Â  Â  Â  Â  Â  subSel.tomselect.addOption({value: subText, text: subText});
+Â  Â  Â  Â  Â  Â  subSel.tomselect.setValue(subText, true);
+Â  Â  Â  Â  }
+Â  Â  }
     
     row.querySelector('.hsn').value = inv.hsns?inv.hsns[i]:'';
     row.querySelector('.qty').value = inv.qtys?Math.abs(inv.qtys[i]):1;
@@ -1015,7 +1042,7 @@ async function handleParticularInput(val, row) {
 
   // Product ID resolution: if the typed value isn't a known particular but matches
   // a Product ID, swap it for the underlying particular name and recurse. The
-  // Product ID itself never appears anywhere on the invoice — it's only a lookup key.
+  // Product ID itself never appears anywhere on the invoice â€” it's only a lookup key.
   if (!fd) {
     try {
       const r = await fetch('/products/lookup/' + encodeURIComponent(val));
@@ -1035,7 +1062,7 @@ async function handleParticularInput(val, row) {
           }
         }
       }
-    } catch { /* offline / network — silently fall through */ }
+    } catch { /* offline / network â€” silently fall through */ }
   }
   if(fd) {
     if(IS_SERVICE) {
@@ -1071,7 +1098,7 @@ async function handleParticularInput(val, row) {
   }
   // Skip stock checking entirely if we are in Service Mode
   if(currentMode === 'sale' && !IS_SERVICE) {
-    sl.innerHTML = '<span class="stock-chip chk">Checking…</span>';
+    sl.innerHTML = '<span class="stock-chip chk">Checkingâ€¦</span>';
     try {
       const r = await fetch(`/api/check-stock/${encodeURIComponent(val)}`);
       const sd = await r.json();
@@ -1091,7 +1118,7 @@ function addRow() {
   const row = document.createElement('tr');
   row.innerHTML = `
     <td style="padding:8px;min-width:220px;">
-      <select class="particulars-select" placeholder="Search or type item…"></select>
+      <select class="particulars-select" placeholder="Search or type itemâ€¦"></select>
       <div class="sub-particular-wrapper" style="display:none; margin-top:6px;">
         <select class="sub-particular" placeholder="Select or type new sub-particular..."></select>
       </div>
@@ -1103,7 +1130,7 @@ function addRow() {
     <td style="padding:5px 6px;"><input type="number" class="discount" value="0" min="0" max="100" step="0.5" style="text-align:center;width:64px;"></td>
     <td style="padding:5px 6px;"><select class="taxrate" style="width:100px;"><option value="18">18%</option><option value="5">5%</option><option value="40">40%</option><option value="0">0%</option></select></td>
     <td style="padding:5px 6px;" class="amount-cell"><input type="number" class="amount" value="0" readonly style="text-align:right;border:none;background:transparent;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13px;"></td>
-    <td style="padding:5px 6px;text-align:center;"><button type="button" onclick="removeRow(this)" class="row-remove">×</button></td>`;
+    <td style="padding:5px 6px;text-align:center;"><button type="button" onclick="removeRow(this)" class="row-remove">Ã—</button></td>`;
   tbody.appendChild(row);
   
   const subSelEl = row.querySelector('.sub-particular');
@@ -1156,7 +1183,7 @@ function addRow() {
         return `<div style="padding:8px 12px;font-size:13px; display:flex; align-items:center; justify-content:space-between;"><span>${escape(data.text)}</span>${pidBadge}</div>`;
       },
       item: function(data, escape) {
-        // Selected item shows ONLY the name — Product ID never shows on the invoice.
+        // Selected item shows ONLY the name â€” Product ID never shows on the invoice.
         return `<div>${escape(data.text)}</div>`;
       }
     },
@@ -1272,7 +1299,7 @@ document.getElementById('generateBtn').addEventListener('click', async () => {
   
   const data = {
     is_edit: isEditMode, doc_category: currentMode, doc_type: type,
-    invoice_type: INVOICE_TYPE, 
+    invoice_type: currentInvoiceType,
     is_non_gst: document.getElementById('is_non_gst').checked,
     client_name: clientName,
     client_address1: document.getElementById('client_address1').value.trim(),
@@ -1321,11 +1348,11 @@ document.getElementById('generateBtn').addEventListener('click', async () => {
   };
   const btn = document.getElementById('generateBtn');
   btn.disabled = true;
-  sdLoading('Saving Document…', 'Generating PDF and saving records');
+  sdLoading('Saving Documentâ€¦', 'Generating PDF and saving records');
   try {
     const res = await fetch('/generate-invoice', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
     if(res.ok) {
-      sdStep('Downloading PDF…');
+      sdStep('Downloading PDFâ€¦');
       const blob = await res.blob();
       const a = document.createElement('a');
       a.href = window.URL.createObjectURL(blob);
@@ -1342,11 +1369,11 @@ document.getElementById('generateBtn').addEventListener('click', async () => {
 });
 
 async function downloadSingle(bno) {
-  sdLoading('Downloading Invoice…', 'Generating PDF');
+  sdLoading('Downloading Invoiceâ€¦', 'Generating PDF');
   try {
     const res = await fetch(`/download-invoice/${encodeURIComponent(bno)}`);
     if (res.ok) {
-      sdStep('Saving PDF…');
+      sdStep('Saving PDFâ€¦');
       const blob = await res.blob();
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
@@ -1361,27 +1388,27 @@ async function downloadSingle(bno) {
 async function emailSingle(bno) {
   const ok = await sdConfirm(`Send invoice email to client for <strong>${bno}</strong>?`, 'Send Email', { okLabel: 'Send', cancelLabel: 'Cancel' });
   if (!ok) return;
-  sdLoading('Sending Email…', 'Connecting to mail server');
+  sdLoading('Sending Emailâ€¦', 'Connecting to mail server');
   try {
     const r = await fetch(`/email-invoice/${encodeURIComponent(bno)}`, { method: 'POST' });
     const d = await r.json();
     sdDismiss();
     if (r.ok) sdSuccess('Email Sent', d.message || 'Invoice emailed successfully.');
     else sdError(d.error || d.message || 'Failed to send email.', 'Email Failed');
-  } catch(e) { sdDismiss(); sdError('Network error — could not send email.', 'Network Error'); }
+  } catch(e) { sdDismiss(); sdError('Network error â€” could not send email.', 'Network Error'); }
 }
 async function downloadZip() {
   const sel = Array.from(document.querySelectorAll('.hist-checkbox:checked')).map(cb=>cb.value);
   if (!sel.length) { sdAlert('Select at least one document first.', 'Nothing Selected'); return; }
-  sdLoading('Preparing ZIP…', `Bundling ${sel.length} document${sel.length > 1 ? 's' : ''}…`);
+  sdLoading('Preparing ZIPâ€¦', `Bundling ${sel.length} document${sel.length > 1 ? 's' : ''}â€¦`);
   try {
     const res = await fetch('/download-zip',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({bill_nos:sel})});
     if (res.ok) {
-      sdStep('Downloading ZIP…');
+      sdStep('Downloading ZIPâ€¦');
       const b=await res.blob(); const a=document.createElement('a'); a.href=window.URL.createObjectURL(b); a.download='Documents.zip'; document.body.appendChild(a); a.click(); a.remove();
       sdSuccess('Download Ready', `${sel.length} document${sel.length > 1 ? 's' : ''} downloaded as ZIP.`);
     } else sdError('Could not generate ZIP. Please try again.', 'Download Failed');
-  } catch(e) { sdError('Network error — download failed.', 'Network Error'); }
+  } catch(e) { sdError('Network error â€” download failed.', 'Network Error'); }
 }
 
 function resetForm() {
@@ -1390,6 +1417,7 @@ function resetForm() {
   document.getElementById('manual_bill_no').readOnly = false;
   document.getElementById('manual_bill_no').style.background = '';
   document.getElementById('manual_details').className = 'manual-block';
+  if (INVOICE_TYPE === 'both') switchInvoiceType('goods');
   handleModeChange();
   document.querySelectorAll('input').forEach(i => { if(i.type!=='radio'&&i.type!=='checkbox') i.value=''; });
   document.getElementById('is_non_gst').checked = false;
@@ -1406,8 +1434,8 @@ function resetForm() {
   updateBtnLabel();
 }
 
-/* ── RapidShyp B2B Shipment ─────────────────────────────────────────── */
-let shipProductsMap = {}; // name → { product_id, sku }
+/* â”€â”€ RapidShyp B2B Shipment â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+let shipProductsMap = {}; // name â†’ { product_id, sku }
 let currentShipParticulars = [];
 (async () => {
   try {
@@ -1456,7 +1484,7 @@ function openShipModal(billNo) {
   const inv = invoiceListCache.find(i => i.bill_no === billNo);
   if (!inv) { sdAlert('Invoice not found.', 'Not Found'); return; }
 
-  document.getElementById('shipModalTitle').textContent = `Create B2B Shipment — ${billNo}`;
+  document.getElementById('shipModalTitle').textContent = `Create B2B Shipment â€” ${billNo}`;
   document.getElementById('shipOrderId').value    = generateRsOrderId(invoiceDateToISO(inv.invoice_date));
   document.getElementById('shipOrderDate').value  = invoiceDateToISO(inv.invoice_date);
   document.getElementById('shipPickup').value     = RAPIDSHYP_PICKUP;
@@ -1481,7 +1509,7 @@ function openShipModal(billNo) {
   document.getElementById('shipBillAddr2').value   = inv.client_address2 || '';
   document.getElementById('shipBillPincode').value = inv.client_pincode  || '';
 
-  // Emails — fall back to allClientsData lookup if not saved on invoice
+  // Emails â€” fall back to allClientsData lookup if not saved on invoice
   const _clientKey   = Object.keys(allClientsData || {}).find(k => k.toLowerCase() === (inv.client_name || '').toLowerCase());
   const _clientEmail = inv.client_email || (_clientKey && allClientsData[_clientKey] && allClientsData[_clientKey].email) || '';
   console.log('[B2B email debug] client_name:', inv.client_name, '| inv.client_email:', inv.client_email, '| key found:', _clientKey, '| client email in DB:', _clientKey && allClientsData[_clientKey] && allClientsData[_clientKey].email, '| final:', _clientEmail);
@@ -1504,7 +1532,7 @@ function openShipModal(billNo) {
   document.getElementById('shipEwayExpiry').value  = '';
   shipSyncAmounts();
 
-  // Items table — look up SKU from products map
+  // Items table â€” look up SKU from products map
   currentShipParticulars = (inv.particulars || []).map(p => String(p || '').split('\n')[0].trim()).filter(Boolean);
   const tbody = document.getElementById('shipItemsBody');
   tbody.innerHTML = '';
@@ -1528,14 +1556,14 @@ function addShipRow(name) {
   const tr   = document.createElement('tr');
   tr.dataset.itemName = name;
   tr.innerHTML = `
-    <td style="padding:6px 8px; font-size:12px; font-weight:600; max-width:160px; word-break:break-word;">${name || '—'}</td>
+    <td style="padding:6px 8px; font-size:12px; font-weight:600; max-width:160px; word-break:break-word;">${name || 'â€”'}</td>
     <td style="padding:4px;"><input type="text" value="${sku}" class="ship-sku input" style="width:100px; padding:4px 6px; font-size:11px; font-family:monospace;"></td>
     <td style="padding:4px;"><input type="number" min="1" value="1" class="ship-boxes input" style="width:55px; padding:4px 6px; font-size:12px;"></td>
     <td style="padding:4px;"><input type="number" min="0.1" step="0.1" value="${wt}" class="ship-weight input" placeholder="kg" style="width:65px; padding:4px 6px; font-size:12px;"></td>
     <td style="padding:4px;"><input type="number" min="1" value="${sl}" class="ship-len input" placeholder="cm" style="width:55px; padding:4px 6px; font-size:12px;"></td>
     <td style="padding:4px;"><input type="number" min="1" value="${sb}" class="ship-bre input" placeholder="cm" style="width:55px; padding:4px 6px; font-size:12px;"></td>
     <td style="padding:4px;"><input type="number" min="1" value="${sh}" class="ship-hei input" placeholder="cm" style="width:55px; padding:4px 6px; font-size:12px;"></td>
-    <td style="padding:4px; text-align:center;"><button type="button" onclick="this.closest('tr').remove()" style="background:none; border:none; cursor:pointer; color:#ef4444; font-size:18px; line-height:1; padding:2px 6px;" title="Remove row">×</button></td>
+    <td style="padding:4px; text-align:center;"><button type="button" onclick="this.closest('tr').remove()" style="background:none; border:none; cursor:pointer; color:#ef4444; font-size:18px; line-height:1; padding:2px 6px;" title="Remove row">Ã—</button></td>
   `;
   document.getElementById('shipItemsBody').appendChild(tr);
 }
@@ -1561,7 +1589,7 @@ async function cancelB2BShipment(billNo) {
     { okLabel: 'Yes, Cancel', cancelLabel: 'Keep Shipment' }
   );
   if (!ok) return;
-  sdLoading('Cancelling Shipment…', 'Contacting RapidShyp');
+  sdLoading('Cancelling Shipmentâ€¦', 'Contacting RapidShyp');
   try {
     const res  = await fetch('/rapidshyp/b2b-cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shipment_id: shipmentId }) });
     const data = await res.json();
@@ -1635,7 +1663,7 @@ async function submitShipment() {
     if (!boxes || !weight || !len || !bre || !hei) { valid = false; return; }
     item_lines.push({ product_name: name, sku, number_of_boxes: boxes, dead_weight_per_box: weight, length: len, breadth: bre, height: hei });
   });
-  if (!valid || !item_lines.length) { sdAlert('Fill in SKU, Boxes, Weight and L×B×H for every item.', 'Validation'); return; }
+  if (!valid || !item_lines.length) { sdAlert('Fill in SKU, Boxes, Weight and LÃ—BÃ—H for every item.', 'Validation'); return; }
 
   const shipping_address = {
     name: sName, mobile_number: sMobile,
@@ -1670,7 +1698,7 @@ async function submitShipment() {
   const payload = { order_id, order_date, store_name: store, payment_type: pay_type, pickup_location: pickup, shipping_address, billing_address, invoices: [invoice] };
 
   btn.disabled = true;
-  sdLoading('Creating B2B Shipment', 'Connecting to RapidShyp…');
+  sdLoading('Creating B2B Shipment', 'Connecting to RapidShypâ€¦');
   try {
     const res  = await fetch('/rapidshyp/b2b-order', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
     const data = await res.json();
@@ -1684,7 +1712,7 @@ async function submitShipment() {
       let attachMsg = '';
       const fileInput = document.getElementById('shipInvoiceFile');
       if (fileInput && fileInput.files.length > 0) {
-        sdStep('Attaching invoice PDF…');
+        sdStep('Attaching invoice PDFâ€¦');
         try {
           const fd = new FormData();
           fd.append('order_id', createdOrderId);
@@ -1739,7 +1767,7 @@ async function submitShipment() {
 async function openTrackModal(billNo) {
   const shipmentId = getShippedOrder(billNo);
   if (!shipmentId) { sdAlert('No shipment ID found for this invoice.', 'Error'); return; }
-  sdLoading('Fetching Tracking', 'Loading scan history from RapidShyp…');
+  sdLoading('Fetching Tracking', 'Loading scan history from RapidShypâ€¦');
   try {
     const res  = await fetch('/rapidshyp/tracking-info', {
       method: 'POST',
@@ -1762,11 +1790,11 @@ async function openTrackModal(billNo) {
 }
 
 async function downloadProxyLabel(encodedUrl, filename, labelName) {
-  sdLoading('Downloading ' + labelName, 'Fetching PDF from RapidShyp…');
+  sdLoading('Downloading ' + labelName, 'Fetching PDF from RapidShypâ€¦');
   try {
     const res = await fetch('/rapidshyp/proxy-pdf?url=' + encodedUrl);
     if (res.ok) {
-      sdStep('Saving PDF…');
+      sdStep('Saving PDFâ€¦');
       const blob = await res.blob();
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
@@ -1780,26 +1808,26 @@ async function downloadProxyLabel(encodedUrl, filename, labelName) {
 }
 
 function renderTrackModal(billNo, order, inv) {
-  const status = inv.current_tracking_status_desc || order.order_status || '—';
+  const status = inv.current_tracking_status_desc || order.order_status || 'â€”';
   const statusCode = inv.current_tracking_status_code || '';
   const shipped = ['DEL','OFD','DLV'].includes(statusCode);
   const cancelled = ['PCN','RTO','CAN'].includes(statusCode);
   const statusColor = shipped ? '#16a34a' : cancelled ? '#dc2626' : '#d97706';
 
-  document.getElementById('trackTitle').textContent = `Track Shipment — ${billNo}`;
+  document.getElementById('trackTitle').textContent = `Track Shipment â€” ${billNo}`;
 
   document.getElementById('trackBody').innerHTML = `
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:12px;">
-      <div><span style="color:var(--ink-4);">Shipment ID</span><br><b style="font-family:monospace;">${inv.shipment_id || '—'}</b></div>
-      <div><span style="color:var(--ink-4);">AWB</span><br><b style="font-family:monospace;">${inv.awb || '—'}</b></div>
-      <div><span style="color:var(--ink-4);">Courier</span><br><b>${inv.courierName || '—'}</b></div>
+      <div><span style="color:var(--ink-4);">Shipment ID</span><br><b style="font-family:monospace;">${inv.shipment_id || 'â€”'}</b></div>
+      <div><span style="color:var(--ink-4);">AWB</span><br><b style="font-family:monospace;">${inv.awb || 'â€”'}</b></div>
+      <div><span style="color:var(--ink-4);">Courier</span><br><b>${inv.courierName || 'â€”'}</b></div>
       <div><span style="color:var(--ink-4);">Status</span><br><b style="color:${statusColor};">${status}</b></div>
       ${inv.tracking_url ? `<div style="grid-column:1/-1;"><span style="color:var(--ink-4);">Tracking URL</span><br><a href="${inv.tracking_url}" target="_blank" style="color:#2563eb; font-size:12px; word-break:break-all;">${inv.tracking_url}</a></div>` : ''}
     </div>
     ${(inv.mps_label_url || inv.master_label_url) ? `
     <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px;">
-      ${inv.mps_label_url    ? `<button onclick="downloadProxyLabel('${encodeURIComponent(inv.mps_label_url)}','mps_label_${inv.shipment_id||''}.pdf','MPS Label')"    class="btn btn-ghost" style="font-size:11px; padding:4px 10px;">⬇ MPS Label</button>` : ''}
-      ${inv.master_label_url ? `<button onclick="downloadProxyLabel('${encodeURIComponent(inv.master_label_url)}','master_label_${inv.shipment_id||''}.pdf','Master Label')" class="btn btn-ghost" style="font-size:11px; padding:4px 10px;">⬇ Master Label</button>` : ''}
+      ${inv.mps_label_url    ? `<button onclick="downloadProxyLabel('${encodeURIComponent(inv.mps_label_url)}','mps_label_${inv.shipment_id||''}.pdf','MPS Label')"    class="btn btn-ghost" style="font-size:11px; padding:4px 10px;">â¬‡ MPS Label</button>` : ''}
+      ${inv.master_label_url ? `<button onclick="downloadProxyLabel('${encodeURIComponent(inv.master_label_url)}','master_label_${inv.shipment_id||''}.pdf','Master Label')" class="btn btn-ghost" style="font-size:11px; padding:4px 10px;">â¬‡ Master Label</button>` : ''}
     </div>` : ''}
     <div style="border-top:1px solid var(--border); padding-top:10px; margin-top:4px;">
       <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--ink-4); margin-bottom:10px;">Scan History</div>
@@ -1814,7 +1842,7 @@ function renderTrackModal(billNo, order, inv) {
                 </div>
                 <div style="padding-bottom:12px;">
                   <div style="font-size:12px; font-weight:600; color:var(--ink);">${s.scan}</div>
-                  <div style="font-size:11px; color:var(--ink-4);">${s.scan_datetime}${s.scan_location ? ' · ' + s.scan_location : ''}</div>
+                  <div style="font-size:11px; color:var(--ink-4);">${s.scan_datetime}${s.scan_location ? ' Â· ' + s.scan_location : ''}</div>
                 </div>
               </div>`).join('')}
           </div>`}
@@ -1826,7 +1854,7 @@ function closeTrackModal() { document.getElementById('trackModal').style.display
 async function downloadLabel(billNo) {
   const shipmentId = getShippedOrder(billNo);
   if (!shipmentId) { sdAlert('No shipment ID found for this invoice.', 'Error'); return; }
-  sdLoading('Fetching Label', 'Requesting label from RapidShyp…');
+  sdLoading('Fetching Label', 'Requesting label from RapidShypâ€¦');
   try {
     const res = await fetch('/rapidshyp/get-label', {
       method: 'POST',
@@ -1861,7 +1889,7 @@ async function downloadLabel(billNo) {
         if (ld.mps_label_url || ld.master_label_url) {
           setTimeout(() => sdSuccess('Labels Downloading', 'MPS and Master label PDFs are saving to your downloads folder.'), 700);
         } else {
-          sdSuccess('Label Generated', data.remarks || 'Label generated — check RapidShyp dashboard.');
+          sdSuccess('Label Generated', data.remarks || 'Label generated â€” check RapidShyp dashboard.');
         }
       } else {
         sdError(data.remarks || data.error || JSON.stringify(data), 'Label Failed');
@@ -1888,7 +1916,7 @@ async function submitAwb() {
   const body = { shipment_id: shipmentId };
   if (courierCode) body.courier_code = courierCode;
   closeAwbModal();
-  sdLoading('Assigning AWB', 'Connecting to RapidShyp…');
+  sdLoading('Assigning AWB', 'Connecting to RapidShypâ€¦');
   try {
     const res  = await fetch('/rapidshyp/b2b-assign-awb', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data = await res.json();
@@ -1972,9 +2000,9 @@ async function submitAwb() {
         <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
           <div><div class="field-label">Invoice Number</div><input id="shipInvNo" class="input" type="text" readonly style="background:var(--surface-2); font-family:monospace; font-size:12px;"></div>
           <div><div class="field-label">Invoice Date</div><input id="shipInvDate" class="input" type="date" readonly style="background:var(--surface-2);"></div>
-          <div><div class="field-label">Invoice Value (₹ inc GST)</div><input id="shipInvValue" class="input" type="number" readonly style="background:var(--surface-2);" onchange="shipSyncAmounts()"></div>
-          <div><div class="field-label">Prepaid Amount (₹)</div><input id="shipPrepaidAmt" class="input" type="number" step="0.01"></div>
-          <div><div class="field-label">Collectable Amount (₹)</div><input id="shipCollectAmt" class="input" type="number" step="0.01"></div>
+          <div><div class="field-label">Invoice Value (â‚¹ inc GST)</div><input id="shipInvValue" class="input" type="number" readonly style="background:var(--surface-2);" onchange="shipSyncAmounts()"></div>
+          <div><div class="field-label">Prepaid Amount (â‚¹)</div><input id="shipPrepaidAmt" class="input" type="number" step="0.01"></div>
+          <div><div class="field-label">Collectable Amount (â‚¹)</div><input id="shipCollectAmt" class="input" type="number" step="0.01"></div>
           <div><div class="field-label">GST Number</div><input id="shipInvGST" class="input" type="text" placeholder="Buyer GSTIN (optional)"></div>
           <div><div class="field-label">Eway Bill Number</div><input id="shipEwayNo" class="input" type="text" placeholder="Optional"></div>
           <div><div class="field-label">Eway Bill Expiry</div><input id="shipEwayExpiry" class="input" type="date" placeholder="Optional"></div>
@@ -1987,7 +2015,7 @@ async function submitAwb() {
         <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--ink-muted); margin-bottom:8px;">Attach Invoice (Optional)</div>
         <div style="display:flex; align-items:center; gap:12px;">
           <input id="shipInvoiceFile" type="file" accept=".pdf,.png,.jpeg,.jpg" class="input" style="flex:1; padding:6px;">
-          <span style="font-size:11px; color:var(--ink-muted); white-space:nowrap;">PDF · PNG · JPEG · max 10 MB</span>
+          <span style="font-size:11px; color:var(--ink-muted); white-space:nowrap;">PDF Â· PNG Â· JPEG Â· max 10 MB</span>
         </div>
         <div id="shipAttachStatus" style="font-size:12px; color:var(--ink-muted); margin-top:6px; display:none;"></div>
       </div>
