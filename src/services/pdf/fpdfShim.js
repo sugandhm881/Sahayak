@@ -8,17 +8,18 @@ const MM_TO_PT = 72 / 25.4;
 const mm = (v) => v * MM_TO_PT;
 
 class FpdfShim {
-  constructor() {
-    this.doc = new PDFDocument({ size: 'A4', margin: 0, autoFirstPage: false });
+  constructor(opts = {}) {
+    this.landscape = !!(opts && opts.landscape);
+    this.doc = new PDFDocument({ size: 'A4', layout: this.landscape ? 'landscape' : 'portrait', margin: 0, autoFirstPage: false });
     registerFonts(this.doc);
     this.chunks = [];
     this.doc.on('data', (c) => this.chunks.push(c));
     this.doc.on('end', () => { this._endResolve && this._endResolve(Buffer.concat(this.chunks)); });
     this.doc.on('error', (err) => { this._endReject && this._endReject(err); });
 
-    // Page metrics in mm (A4)
-    this.w = 210;
-    this.h = 297;
+    // Page metrics in mm (A4) — swap for landscape
+    this.w = this.landscape ? 297 : 210;
+    this.h = this.landscape ? 210 : 297;
     this.lMargin = 15;
     this.rMargin = 15;
     this.tMargin = 10;
@@ -36,7 +37,7 @@ class FpdfShim {
   }
 
   add_page() {
-    this.doc.addPage({ size: 'A4', margin: 0 });
+    this.doc.addPage({ size: 'A4', layout: this.landscape ? 'landscape' : 'portrait', margin: 0 });
     this.x = this.lMargin;
     this.y = this.tMargin;
   }

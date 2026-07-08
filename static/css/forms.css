@@ -1,0 +1,78 @@
+/* ============================================================================
+   Sahayak — shared document-form components.
+   These styles were previously defined only inside templates/index.html's inline
+   <style>, so any other page reusing the same class names (Purchase Order, GRN)
+   rendered unstyled. Loaded on every page via _shell_head.html.
+   index.html still carries its own copy inline (which harmlessly wins there).
+   ============================================================================ */
+
+/* ── TomSelect controls (match the app's inputs) ─────────────────────────── */
+.ts-wrapper .ts-control {
+  border-radius: var(--radius-sm) !important; border: 1px solid var(--border) !important;
+  padding: 8.5px 12px !important; background: var(--surface) !important; box-shadow: none !important;
+  font-size: 13px !important; font-family: 'Plus Jakarta Sans', sans-serif !important;
+  min-height: 38px !important; transition: var(--transition);
+}
+.ts-wrapper.focus .ts-control { border-color: #93c5fd !important; box-shadow: 0 0 0 3px rgba(59,130,246,0.12) !important; }
+.ts-wrapper.single .ts-control { padding-right: 2.5rem !important; }
+.ts-wrapper.single .ts-control .item { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; display: block; }
+.ts-wrapper.disabled .ts-control { background: var(--surface-2) !important; opacity: 0.7; cursor: not-allowed; }
+.ts-dropdown .option { padding: 10px 14px !important; font-size: 13px !important; border-bottom: 1px solid var(--surface-2); cursor: pointer; }
+.ts-dropdown .option.active, .ts-dropdown .option:hover { background: var(--surface-2) !important; color: var(--ink) !important; font-weight: 600; }
+
+/* ── Party / detail cards ────────────────────────────────────────────────── */
+.party-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 20px; }
+.party-block { border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden; background: var(--surface); }
+.party-block-header { padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); background: var(--surface-2); }
+.party-block-title { font-size: 12px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: var(--ink-2); }
+.party-block-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.bill-to-block { border-color: #bfdbfe; }
+.bill-to-block .party-block-header { background: #eff6ff; }
+.bill-to-block .party-block-title { color: #1d4ed8; }
+.ship-to-block .party-block-header { background: var(--surface-2); }
+.ship-to-block .party-block-title { color: var(--ink-2); }
+
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.field-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.field-label { font-size: 10px; font-weight: 700; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 4px; }
+
+/* ── Items table ─────────────────────────────────────────────────────────── */
+.items-section { padding: 20px; }
+.items-table-wrap { overflow-x: auto; border-radius: var(--radius-sm); border: 1px solid var(--border); }
+table.items-table { width: 100%; min-width: 760px; border-collapse: collapse; }
+table.items-table thead tr { background: var(--ink); color: white; }
+table.items-table.purchase-mode thead tr { background: #1e40af; }
+table.items-table th { padding: 10px 12px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px; white-space: nowrap; }
+table.items-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+table.items-table tr:last-child td { border-bottom: none; }
+table.items-table tbody tr:hover { background: var(--surface-2); }
+table.items-table td input { padding: 7px 8px; font-size: 12.5px; border-radius: 6px; }
+table.items-table td .ts-wrapper .ts-control { min-height: 32px !important; padding: 6px 10px !important; font-size: 12.5px !important; }
+.amount-cell { background: var(--surface-2); }
+.amount-cell input { background: transparent; border: none; font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--ink); width: 100%; }
+
+.add-row-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: var(--radius-sm); background: var(--surface-2); border: 1px dashed var(--border-2); color: var(--ink-2); font-size: 13px; font-weight: 600; cursor: pointer; transition: var(--transition); margin-top: 10px; font-family: inherit; }
+.add-row-btn:hover { background: var(--surface-3); border-color: #93c5fd; color: #2563eb; }
+.row-remove { width: 28px; height: 28px; border-radius: 6px; background: var(--red-light); color: var(--red); border: none; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; transition: var(--transition); }
+.row-remove:hover { background: #fee2e2; }
+
+/* ── Totals + primary action ─────────────────────────────────────────────── */
+.totals-panel { background: var(--surface-2); border-radius: var(--radius); border: 1px solid var(--border); padding: 16px 20px; }
+.totals-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-size: 13px; color: var(--ink-2); border-bottom: 1px dashed var(--border); }
+.totals-row:last-child { border-bottom: none; }
+.totals-row.grand { margin-top: 8px; padding-top: 12px; font-size: 20px; font-weight: 800; color: var(--ink); }
+
+.generate-btn { width: 100%; padding: 15px 28px; border-radius: var(--radius); font-size: 16px; font-weight: 800; cursor: pointer; transition: var(--transition); border: none; display: flex; align-items: center; justify-content: center; gap: 10px; font-family: inherit; color: #fff; box-shadow: var(--shadow); }
+.generate-btn:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+.generate-btn:disabled { opacity: 0.7; transform: none !important; cursor: not-allowed; }
+.generate-btn.sale { background: linear-gradient(135deg, #f97316, #ea580c, #dc2626); }
+.generate-btn.purchase { background: linear-gradient(135deg, #3b82f6, #2563eb, #1d4ed8); }
+
+input.mono { font-family: 'JetBrains Mono', monospace; letter-spacing: 0.5px; }
+
+/* ── Mobile ──────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .party-grid { grid-template-columns: 1fr; padding: 12px; }
+  .field-row, .field-row-3 { grid-template-columns: 1fr; }
+  .items-section { padding: 12px; }
+}

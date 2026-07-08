@@ -592,6 +592,9 @@ table.table {
 .ts-dropdown { min-width: max-content; z-index: 1100 !important; } /* above modal-backdrop (1000) */
 .ts-dropdown .option { white-space: nowrap; }
 .ts-wrapper.single .ts-control { cursor: pointer; }
+/* For controls at the right edge of a row: open the menu inward (right-aligned)
+   so a max-content dropdown never clips off the right of the viewport. */
+.ts-dropdown.ts-dropdown--right { left: auto; right: 0; }
 
 /* ═══════════════════════════════════════════════════════════════════
    Sahayak Pro Dialog — global loading / alert / confirm UI system

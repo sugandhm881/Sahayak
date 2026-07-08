@@ -2,8 +2,11 @@ const express = require('express');
 const router = express.Router();
 const https = require('https');
 const supabase = require('../config/supabase');
-const { loginRequired } = require('../middleware/auth');
+const { loginRequired, requireAnyPermission } = require('../middleware/auth');
 const { getTenantId } = require('../middleware/tenant');
+
+// Vendors/parties are managed by vendor staff and by any sales/purchase user.
+router.use(requireAnyPermission('vendors', 'sale', 'purchase'));
 
 router.get('/vendors', loginRequired, (req, res) => {
   res.render('vendors.html');

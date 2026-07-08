@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Create Account — Sahayak ERP</title>
+  {% include "_shell_head.html" %}
+</head>
+<body>
+  <div class="auth-wrap">
+    <div class="auth-card">
+      <div class="auth-accent"></div>
+      <div class="auth-body">
+
+        <div class="auth-logo">
+          <img src="/static/Sahayak_logo.png" alt="Sahayak ERP">
+        </div>
+
+        <h1 class="auth-title">Create your workspace</h1>
+        <p class="auth-sub">Start invoicing in minutes — no card required.</p>
+
+        {% if error %}
+          <div class="alert alert-error mb-md">{{ error }}</div>
+        {% endif %}
+
+        <form method="POST" action="/signup" class="auth-form">
+          <div>
+            <label class="field-label">Business / Company name</label>
+            <input type="text" name="company_name" placeholder="Acme Traders" required
+                   value="{{ form.company_name or '' }}">
+          </div>
+          <div>
+            <label class="field-label">Choose a username <span class="text-xs text-muted">(your workspace id)</span></label>
+            <input type="text" name="username" placeholder="acme-traders" required autocomplete="username"
+                   value="{{ form.username or '' }}"
+                   pattern="[a-zA-Z0-9_.\-]{3,32}" title="3–32 characters: letters, numbers, dot, underscore or hyphen">
+          </div>
+          <div>
+            <label class="field-label">Email <span class="text-xs text-muted">(used for your login codes)</span></label>
+            <input type="email" name="email" placeholder="you@business.com" required autocomplete="email"
+                   value="{{ form.email or '' }}">
+          </div>
+          <div>
+            <label class="field-label">Password</label>
+            <input type="password" name="password" placeholder="At least 8 characters" required
+                   minlength="8" autocomplete="new-password">
+          </div>
+          <div>
+            <label class="field-label">Confirm password</label>
+            <input type="password" name="confirm_password" placeholder="Re-enter your password" required
+                   minlength="8" autocomplete="new-password">
+          </div>
+          <button type="submit" class="btn btn-primary btn-lg" style="width:100%; margin-top:6px;" data-loading-title="Creating…">
+            Create Account
+          </button>
+        </form>
+
+        <div class="auth-footer">
+          <span class="text-xs text-muted">Already have a workspace? <a href="/login">Sign in</a></span>
+        </div>
+      </div>
+    </div>
+  </div>
+{% include "_auth_loader.html" %}
+</body>
+</html>

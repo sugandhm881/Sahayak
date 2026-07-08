@@ -4,7 +4,7 @@
 const express = require('express');
 const router = express.Router();
 const supabase = require('../config/supabase');
-const { loginRequired, masterOnly } = require('../middleware/auth');
+const { loginRequired, masterOnly, requireAnyPermission } = require('../middleware/auth');
 const { getTenantId } = require('../middleware/tenant');
 const { formatLedgerDate, fyString, parseInvoiceDate } = require('../utils/dates');
 const journal = require('../services/accounting/journal');
@@ -17,6 +17,11 @@ const { getSellerProfile, saveSellerProfile } = require('../repositories/configs
 const { STANDARD_ACCOUNTS } = require('../services/accounting/accounts');
 const { parseFile } = require('../services/accounting/bank');
 const multer = require('multer');
+
+// Gate the entire accounting / bank / expenses / GST area behind master or any of
+// these permissions (matches the nav, which shows Accounts to sale/purchase too).
+// Master-only routes below add their own stricter masterOnly guard.
+router.use(requireAnyPermission('accounts', 'expenses', 'sale', 'purchase'));
 
 async function fetchJournal(tenant, filters = {}) {
   let q = supabase.from('journal_entries').select('*').eq('tenant_id', tenant);

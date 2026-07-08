@@ -1,10 +1,14 @@
 const express = require('express');
 const router = express.Router();
 
-const { loginRequired } = require('../middleware/auth');
+const { loginRequired, requireAnyPermission } = require('../middleware/auth');
 const {
   safeItemId, getProduct, upsertProduct, addLedgerEntry, listProducts, listLedger,
 } = require('../repositories/inventory.repo');
+
+// Inventory is managed by inventory/purchase staff (easyecom users reach the
+// SKU-mapping route, which keeps its own stricter easyecom check below).
+router.use(requireAnyPermission('inventory', 'purchase', 'easyecom'));
 const { nowIso } = require('../utils/dates');
 
 router.get('/inventory', loginRequired, (req, res) => res.render('inventory.html'));

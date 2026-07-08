@@ -1,0 +1,70 @@
+/* ============================================================================
+   Sahayak — UX polish layer
+   Additive smoothness + accessibility, loaded AFTER app.css. It only reuses the
+   existing design tokens (colours, radii, --transition) and adds no new colours
+   or layout. Safe to disable by removing its <link> in _shell_head.html.
+   ============================================================================ */
+
+/* NOTE: `scroll-behavior: smooth` was intentionally removed — applied globally it
+   animates keyboard/scrollbar/programmatic scrolling, which reads as laggy/jerky.
+   Native scrolling is left untouched. */
+
+/* ── Consistent transitions on interactive elements that change on hover/focus
+      (buttons already transition in app.css; this fills the gaps). Only the
+      properties that actually change are transitioned — never `all` — so passing
+      the cursor over these while scrolling doesn't trigger heavy repaints. ──── */
+a,
+.act-btn,
+.mode-pill,
+.doc-badge,
+.status-badge,
+.card,
+.tile,
+input, select, textarea,
+.ts-control {
+  transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+
+/* ── Tactile press feedback: controls dip slightly when clicked ─────────── */
+.btn:active:not(:disabled)      { transform: translateY(1px) scale(0.985); }
+.act-btn:active                 { transform: scale(0.9); }
+.mode-pill:active               { transform: scale(0.97); }
+
+/* ── Primary actions gain a soft shadow on hover so they feel "liftable" ── */
+.btn-primary:hover,
+.btn-secondary:hover            { box-shadow: var(--shadow); }
+
+/* ── Cards lift a touch on hover (only where they are interactive) ──────── */
+a.card:hover,
+.card.is-clickable:hover        { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+
+/* ── Table rows: smooth hover shading ───────────────────────────────────── */
+.table tbody tr                 { transition: background-color 0.15s ease; }
+
+/* ── Keyboard-only focus rings. Mouse clicks stay visually clean, keyboard
+      users get a clear, consistent focus indicator. ─────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--accent-sale);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+/* Remove the legacy outline only for pointer focus on buttons/links; inputs
+   keep their own app.css focus styling untouched. */
+.btn:focus:not(:focus-visible),
+.act-btn:focus:not(:focus-visible),
+a:focus:not(:focus-visible)     { outline: none; }
+
+/* ── Disabled controls read as clearly inert ────────────────────────────── */
+button:disabled, .btn:disabled  { cursor: not-allowed; }
+
+/* ── Respect users who ask the OS for reduced motion. This disables the
+      animations/transitions above (and app.css ones) for them — an
+      accessibility best-practice that was previously missing. ───────────── */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

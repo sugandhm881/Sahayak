@@ -11,6 +11,26 @@
   .status-Confirmed { background:#eff6ff; color:#2563eb; border-color:#bfdbfe; }
   .status-Paid      { background:#f0fdf4; color:#16a34a; border-color:#bbf7d0; }
   .status-Cancelled { background:#fef2f2; color:#dc2626; border-color:#fecaca; }
+
+  /* Status selector: a clickable badge that opens a shared, app-styled menu
+     (one menu for the whole table — keeps re-renders fast and leak-free). */
+  .status-trigger { display:inline-flex; align-items:center; gap:5px; cursor:pointer; font-family:inherit; line-height:1.4; transition:var(--transition); }
+  .status-trigger:hover { filter:brightness(0.97); }
+  .status-trigger .caret { width:11px; height:11px; opacity:.65; flex-shrink:0; }
+  .status-menu {
+    position:fixed; z-index:1200; min-width:156px;
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:var(--radius-sm); box-shadow:var(--shadow-lg);
+    padding:4px; animation: sahayakFadeIn .14s cubic-bezier(.22,1,.36,1);
+  }
+  .status-menu-item { display:flex; align-items:center; gap:8px; padding:7px 12px; font-size:12.5px; font-weight:600; border-radius:var(--radius-xs); cursor:pointer; white-space:nowrap; transition:var(--transition); }
+  .status-menu-item:hover { background:var(--surface-2); }
+  .status-menu-item.is-current { background:var(--surface-3); }
+  .status-menu-item .dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .status-menu-item[data-val="Draft"]     { color:#6b7280; } .status-menu-item[data-val="Draft"]     .dot { background:#9ca3af; }
+  .status-menu-item[data-val="Confirmed"] { color:#2563eb; } .status-menu-item[data-val="Confirmed"] .dot { background:#3b82f6; }
+  .status-menu-item[data-val="Paid"]      { color:#16a34a; } .status-menu-item[data-val="Paid"]      .dot { background:#22c55e; }
+  .status-menu-item[data-val="Cancelled"] { color:#dc2626; } .status-menu-item[data-val="Cancelled"] .dot { background:#ef4444; }
   .age-0  { color:#16a34a; }
   .age-30 { color:#d97706; }
   .age-60 { color:#ea580c; }
@@ -421,6 +441,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     tsTypeFilter = new TomSelect('#histTypeFilter', {
         options: typeOptions,
         controlInput: null,
+        // Right-align the menu — this control sits at the right edge of the
+        // filter row, so a left-aligned max-content dropdown clips off-screen.
+        dropdownClass: 'ts-dropdown ts-dropdown--right',
         onChange: filterHistory
     });
 
@@ -673,16 +696,14 @@ function renderHistoryTable(data) {
             <td class="font-bold">${inv.client_name||'-'}</td>
             <td class="num font-bold">₹${(inv.grand_total||0).toFixed(2)}</td>
             <td style="text-align:center;">
-                <select onchange="updateStatus('${inv.bill_no}', this.value)" class="status-badge status-${status}" style="cursor:pointer; border:1px solid transparent; padding:3px 10px;">
-                    <option value="Draft" ${status==='Draft'?'selected':''}>Draft</option>
-                    <option value="Confirmed" ${status==='Confirmed'?'selected':''}>Confirmed</option>
-                    <option value="Paid" ${status==='Paid'?'selected':''}>Paid</option>
-                    <option value="Cancelled" ${status==='Cancelled'?'selected':''}>Cancelled</option>
-                </select>
+                <button type="button" class="status-badge status-${status} status-trigger" data-bill="${inv.bill_no}" data-status="${status}" title="Change status">
+                    <span class="status-label">${status}</span>
+                    <svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+                </button>
             </td>
             <td style="text-align:center;">
                 <div class="flex items-center" style="justify-content:center; gap:6px;">
-                    ${canEdit ? `<a href="/home?edit=${encodeURIComponent(inv.bill_no)}" class="ico-btn ico-edit" title="Edit"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></a>` : ''}
+                    ${canEdit ? `<a href="${type==='po'?'/purchase/po/new?edit=':type==='grn'?'/purchase/grn/new?edit=':'/home?edit='}${encodeURIComponent(inv.bill_no)}" class="ico-btn ico-edit" title="Edit"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></a>` : ''}
                     <button onclick="saNavTo('/download-invoice/${encodeURIComponent(inv.bill_no)}','Downloading Invoice…','Generating PDF')" class="ico-btn ico-download" title="Download"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg></button>
                     <button onclick="emailSingle('${inv.bill_no}')" class="ico-btn ico-mail" title="Email"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg></button>
                     <button onclick="quickPayment('${inv.bill_no}', '${(inv.client_name||'').replace(/'/g,"\\'")}', ${inv.grand_total||0})" class="ico-btn ico-pay" title="Record Payment"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg></button>
@@ -702,10 +723,86 @@ async function updateStatus(billNo, newStatus) {
         else {
             const inv = allInvoices.find(i => i.bill_no === billNo);
             if (inv) inv.status = newStatus;
+            // Reflect the change on the badge in place — no full table re-render needed.
+            const trigger = Array.from(document.querySelectorAll('.status-trigger')).find(t => t.dataset.bill === billNo);
+            if (trigger) {
+                trigger.className = `status-badge status-${newStatus} status-trigger`;
+                trigger.dataset.status = newStatus;
+                const lbl = trigger.querySelector('.status-label');
+                if (lbl) lbl.textContent = newStatus;
+            }
             loadDashboardData();
         }
     } catch(e) { sdError('Network error', 'Error'); }
 }
+
+/* ── Shared status dropdown ──────────────────────────────────────────────────
+   One menu serves every row's status badge via event delegation, so the table
+   can re-render on each keystroke without creating/leaking per-row widgets. */
+const STATUS_OPTIONS = ['Draft', 'Confirmed', 'Paid', 'Cancelled'];
+
+function ensureStatusMenu() {
+    let menu = document.getElementById('statusMenu');
+    if (menu) return menu;
+    menu = document.createElement('div');
+    menu.id = 'statusMenu';
+    menu.className = 'status-menu';
+    menu.style.display = 'none';
+    menu.innerHTML = STATUS_OPTIONS.map(s =>
+        `<div class="status-menu-item" data-val="${s}"><span class="dot"></span>${s}</div>`).join('');
+    menu.addEventListener('click', (e) => {
+        const item = e.target.closest('.status-menu-item');
+        if (!item) return;
+        const bill = menu.dataset.bill, val = item.dataset.val;
+        closeStatusMenu();
+        if (bill && val) updateStatus(bill, val);
+    });
+    document.body.appendChild(menu);
+    return menu;
+}
+
+function openStatusMenu(trigger) {
+    const menu = ensureStatusMenu();
+    menu.dataset.bill = trigger.dataset.bill || '';
+    const cur = trigger.dataset.status;
+    menu.querySelectorAll('.status-menu-item').forEach(it =>
+        it.classList.toggle('is-current', it.dataset.val === cur));
+    menu.style.visibility = 'hidden';
+    menu.style.display = 'block';
+    const r = trigger.getBoundingClientRect();
+    const mw = menu.offsetWidth, mh = menu.offsetHeight, pad = 8;
+    let left = Math.min(r.left, window.innerWidth - mw - pad);
+    if (left < pad) left = pad;
+    let top = r.bottom + 4;
+    if (top + mh > window.innerHeight - pad) top = r.top - mh - 4; // flip above if no room below
+    menu.style.left = left + 'px';
+    menu.style.top = Math.max(pad, top) + 'px';
+    menu.style.visibility = 'visible';
+    menu._openTrigger = trigger;
+}
+
+function closeStatusMenu() {
+    const menu = document.getElementById('statusMenu');
+    if (menu) { menu.style.display = 'none'; menu.dataset.bill = ''; menu._openTrigger = null; }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    ensureStatusMenu();
+    document.addEventListener('click', (e) => {
+        const trigger = e.target.closest('.status-trigger');
+        const menu = document.getElementById('statusMenu');
+        if (trigger) {
+            e.preventDefault();
+            if (menu && menu.style.display === 'block' && menu._openTrigger === trigger) closeStatusMenu();
+            else openStatusMenu(trigger);
+            return;
+        }
+        if (menu && menu.style.display === 'block' && !e.target.closest('#statusMenu')) closeStatusMenu();
+    });
+    window.addEventListener('resize', closeStatusMenu);
+    window.addEventListener('scroll', closeStatusMenu, true); // capture: also catches scrolling containers
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeStatusMenu(); });
+});
 
 async function deleteInvoice(billNo) {
     const ok = await sdConfirm(`Permanently delete <strong>${billNo}</strong>?<br><span style="font-size:12px;color:#ef4444;">This cannot be undone.</span>`, 'Delete Document', { okLabel: 'Delete', cancelLabel: 'Cancel' });

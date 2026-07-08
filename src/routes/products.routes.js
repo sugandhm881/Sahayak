@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 
-const { loginRequired } = require('../middleware/auth');
+const { loginRequired, requireAnyPermission } = require('../middleware/auth');
 const {
   loadParticulars,
   saveSingleParticular,
@@ -10,6 +10,9 @@ const {
   logChange,
   listChangelog,
 } = require('../repositories/particulars.repo');
+
+// Products catalog is managed by product staff and any sales/purchase user.
+router.use(requireAnyPermission('products', 'purchase', 'sale'));
 
 // Render the manage page.
 router.get('/products', loginRequired, (req, res) => res.render('products.html'));

@@ -90,6 +90,24 @@ router.post('/rapidshyp/mark-shipped', loginRequired, async (req, res) => {
   }
 });
 
+// Persist the latest tracking status on the invoice so the document list can
+// hide actions that no longer apply (Cancel / Assign AWB) once a shipment is
+// delivered or cancelled. Does NOT touch the shipment_id fields.
+router.post('/rapidshyp/save-status', loginRequired, async (req, res) => {
+  if (!permCheck(req, res)) return;
+  try {
+    const { bill_no, status_code, status_desc } = req.body;
+    if (!bill_no) return res.status(400).json({ error: 'bill_no required' });
+    await patchDocumentMeta(req, bill_no, {
+      shipment_status_code: status_code || '',
+      shipment_status_desc: status_desc || '',
+    });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message });
+  }
+});
+
 // Assign AWB to a B2B shipment
 router.post('/rapidshyp/b2b-assign-awb', loginRequired, async (req, res) => {
   if (!permCheck(req, res)) return;

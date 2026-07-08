@@ -1,8 +1,11 @@
 const express = require('express');
 const router = express.Router();
 
-const { loginRequired } = require('../middleware/auth');
+const { loginRequired, requireAnyPermission } = require('../middleware/auth');
 const { perMinute } = require('../middleware/rateLimit');
+
+// Emailing a document is a sales/purchase action.
+router.use(requireAnyPermission('sale', 'purchase'));
 
 const { loadInvoices } = require('../repositories/documents.repo');
 const { getSellerProfile } = require('../repositories/configs.repo');

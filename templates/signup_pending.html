@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Account Pending Approval — Sahayak ERP</title>
+  {% include "_shell_head.html" %}
+</head>
+<body>
+  <div class="auth-wrap">
+    <div class="auth-card">
+      <div class="auth-accent"></div>
+      <div class="auth-body" style="text-align:center;">
+
+        <div class="auth-logo">
+          <img src="/static/Sahayak_logo.png" alt="Sahayak ERP">
+        </div>
+
+        <div style="margin:6px 0 16px;">
+          <span class="pill pill-amber">Pending Approval</span>
+        </div>
+
+        <h1 class="auth-title">Account created</h1>
+        <p class="auth-sub">
+          Thanks{% if company %}, <strong>{{ company }}</strong>{% endif %}! Your email
+          {% if email %}<strong>{{ email }}</strong> {% endif %}is verified and your account is ready.
+        </p>
+        <p class="auth-sub" style="margin-top:10px;">
+          An administrator needs to <strong>approve your account and grant access</strong>
+          before you can sign in. You'll be able to log in as soon as that's done.
+        </p>
+
+        <a href="/login" class="btn btn-primary btn-lg" style="width:100%; margin-top:8px;">
+          Go to Login
+        </a>
+
+        <div class="auth-footer">
+          <span class="text-xs text-muted">Contact your administrator if you need access sooner.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+{% include "_auth_loader.html" %}
+</body>
+</html>

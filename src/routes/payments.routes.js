@@ -1,16 +1,19 @@
 const express = require('express');
 const router = express.Router();
 
-const { loginRequired } = require('../middleware/auth');
+const { loginRequired, requireAnyPermission } = require('../middleware/auth');
 const { perMinute } = require('../middleware/rateLimit');
 
 const { listPayments, upsertPayment, getPayment, deletePayment, allPaymentsRaw } = require('../repositories/payments.repo');
-const { getDocumentRow, updateDocumentData, loadInvoices } = require('../repositories/documents.repo');
+const { getDocumentRow, patchDocumentMeta, loadInvoices } = require('../repositories/documents.repo');
 const { loadClients } = require('../repositories/clients.repo');
 const { getSellerProfile } = require('../repositories/configs.repo');
 const { generateReceiptPdf } = require('../services/pdf/receiptPdf');
 const { sendEmailWithAttachment } = require('../services/email');
 const { formatDDMonYYYY, nowIso } = require('../utils/dates');
+
+// Payments are recorded/viewed by sales/purchase and accounting staff.
+router.use(requireAnyPermission('sale', 'purchase', 'accounts'));
 
 router.get('/payments', loginRequired, async (req, res) => {
   try { res.json(await listPayments(req)); } catch { res.json([]); }
@@ -54,8 +57,8 @@ router.post('/payments', loginRequired, async (req, res) => {
         const tot = all
           .filter((p) => p.ref_invoice === ref && p.payment_type === 'receipt')
           .reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
-        inv.status = tot >= parseFloat(inv.grand_total || 0) ? 'Paid' : 'Confirmed';
-        await updateDocumentData(req, ref, inv);
+        const newStatus = tot >= parseFloat(inv.grand_total || 0) ? 'Paid' : 'Confirmed';
+        await patchDocumentMeta(req, ref, { status: newStatus, status_updated_at: nowIso() });
       }
     }
     res.json({ success: true, payment_id: pay_id });
@@ -80,8 +83,7 @@ router.delete('/delete-payment/:payment_id(*)', loginRequired, async (req, res) 
           .filter((p) => p.ref_invoice === ref && p.payment_type === 'receipt')
           .reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
         if (tot < parseFloat(inv.grand_total || 0)) {
-          inv.status = 'Confirmed';
-          await updateDocumentData(req, ref, inv);
+          await patchDocumentMeta(req, ref, { status: 'Confirmed', status_updated_at: nowIso() });
         }
       }
     }

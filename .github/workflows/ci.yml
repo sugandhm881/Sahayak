@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Syntax-check every source file
+        run: |
+          node -e "
+            const cp = require('child_process'), fs = require('fs');
+            const skip = new Set(['node_modules', '.git', '.github']);
+            let n = 0;
+            (function walk(d){
+              for (const f of fs.readdirSync(d, { withFileTypes: true })) {
+                const p = d + '/' + f.name;
+                if (f.isDirectory()) { if (!skip.has(f.name)) walk(p); }
+                else if (f.name.endsWith('.js')) { cp.execSync('node --check ' + JSON.stringify(p)); n++; }
+              }
+            })('.');
+            console.log('Syntax OK for ' + n + ' files');
+          "
+
+      - name: Unit tests
+        run: npm test

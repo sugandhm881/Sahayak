@@ -27,7 +27,7 @@ router.get('/profile', loginRequired, async (req, res) => {
       const u = await getUser(target_user);
       if (u) {
         target_is_active = !!u.is_active;
-        target_perms = u.permissions || ['sale', 'purchase'];
+        target_perms = u.permissions || [];
       }
     } catch {}
   }
@@ -55,8 +55,10 @@ router.post('/profile', loginRequired, upload.fields([{ name: 'logo' }, { name: 
       dt.status = 'Approved';
       await updateActivationRequest(req_id, dt);
     }
-    req.flash('success', 'Payment Verified!');
-    return res.redirect('/profile');
+    // Approval only activates the account — new users still have no module access.
+    // Land on that user's editor so the master can grant permissions right away.
+    req.flash('success', 'Account activated — now grant module access below.');
+    return res.redirect(`/profile?edit_user=${encodeURIComponent(u_id)}`);
   }
 
   if (body.update_perms && user.is_master) {

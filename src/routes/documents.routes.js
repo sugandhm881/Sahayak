@@ -2,7 +2,7 @@ const express = require('express');
 const archiver = require('archiver');
 const router = express.Router();
 
-const { loginRequired, hasPermission } = require('../middleware/auth');
+const { loginRequired, hasPermission, requireAnyPermission } = require('../middleware/auth');
 const { perMinute } = require('../middleware/rateLimit');
 const { getTenantId } = require('../middleware/tenant');
 const supabase = require('../config/supabase');
@@ -11,16 +11,27 @@ const { getSellerProfile } = require('../repositories/configs.repo');
 const { loadClients, saveSingleClient } = require('../repositories/clients.repo');
 const { loadParticulars, saveSingleParticular } = require('../repositories/particulars.repo');
 const {
-  loadInvoices, saveSingleInvoice, getDocumentRow, deleteDocument, updateDocumentData,
-  loadInvoicesFiltered,
+  loadInvoices, saveSingleInvoice, insertNewInvoice, getDocumentRow, deleteDocument,
+  updateDocumentData, loadInvoicesFiltered, patchDocumentMeta,
 } = require('../repositories/documents.repo');
 const { safeItemId, getProduct, upsertProduct, addLedgerEntry } = require('../repositories/inventory.repo');
 
 const { generateInvoicePdf } = require('../services/pdf/invoicePdf');
+const { generatePoPdf } = require('../services/pdf/poPdf');
+const { generateGrnPdf } = require('../services/pdf/grnPdf');
 const { formatDDMonYYYY, formatLedgerDate, fyString, nowIso } = require('../utils/dates');
 const easyecomService = require('../services/easyecom.service');
 const { linkDocs, listChildren, listParents, unlinkChild } = require('../repositories/docLinks.repo');
 const { getPending, prefillFromParent } = require('../services/docConversion');
+
+// Purchase Orders render with a dedicated PO layout; everything else uses the invoice PDF.
+async function renderDocPdf(data, profile, opts = {}) {
+  if (data && (data.doc_category || 'sale') === 'purchase') {
+    if (data.doc_type === 'po') return generatePoPdf(data, profile, opts);
+    if (data.doc_type === 'grn') return generateGrnPdf(data, profile, opts);
+  }
+  return generateInvoicePdf(data, profile, opts);
+}
 
 function intraStateFromGstinOrState(myGstin, myState, clientGstin, clientState) {
   const myStateCode = myGstin && myGstin.length >= 2 ? myGstin.slice(0, 2) : null;
@@ -48,6 +59,14 @@ router.get('/sales/new', loginRequired, (req, res) => {
 router.get('/purchase/new', loginRequired, (req, res) => {
   if (!hasPermission(req.session.user, 'purchase')) return res.redirect('/sales/new');
   res.render('index.html', { module: 'purchase' });
+});
+
+// Dedicated Purchase Order and GRN screens (purpose-built, not the invoice form).
+router.get('/purchase/po/new', loginRequired, requireAnyPermission('purchase'), (req, res) => {
+  res.render('purchase_order.html', { module: 'purchase' });
+});
+router.get('/purchase/grn/new', loginRequired, requireAnyPermission('purchase'), (req, res) => {
+  res.render('grn.html', { module: 'purchase' });
 });
 
 router.get('/invoices-list', loginRequired, async (req, res) => {
@@ -191,9 +210,14 @@ router.post('/generate-invoice', loginRequired, perMinute(30), async (req, res) 
     }
     if (client_name) await saveSingleClient(req, client_name, client_details);
 
-    // Bill number generation
+    // Bill number generation.
+    // Auto numbers are built from a sequence we can rebuild (makeBillNo), so if a
+    // concurrent request claims the same number first, the strict insert below
+    // fails with DUPLICATE_BILL_NO and we retry with the next sequence.
     let bill_no;
     let invoice_date_str;
+    let makeBillNo = null;
+    let bill_seq = 0;
     const prof = await getSellerProfile(req);
     if ((data.auto_generate === undefined || data.auto_generate) && !is_edit) {
       const prefix = String(prof.invoice_prefix || 'TE').toUpperCase();
@@ -216,15 +240,16 @@ router.post('/generate-invoice', loginRequired, perMinute(30), async (req, res) 
       const pad3 = (n) => String(n).padStart(3, '0');
 
       if (doc_category === 'purchase') {
-        if (doc_type === 'po') bill_no = `${prefix}-PO/${fy_str}/${pad3(await getFyCounter('purchase', 'po'))}`;
-        else if (doc_type === 'grn') bill_no = `${prefix}-GRN/${fy_str}/${pad3(await getFyCounter('purchase', 'grn'))}`;
-        else if (doc_type === 'bill') bill_no = `${prefix}-PB/${fy_str}/${pad3(await getFyCounter('purchase', 'bill'))}`;
-        else if (doc_type === 'dn') bill_no = `${prefix}-PDN/${fy_str}/${pad3(await getFyCounter('purchase', 'dn', false, true))}`;
-        else bill_no = `TEMP-${Math.floor(1000 + Math.random() * 9000)}`;
+        if (doc_type === 'po') { bill_seq = await getFyCounter('purchase', 'po'); makeBillNo = (n) => `${prefix}-PO/${fy_str}/${pad3(n)}`; }
+        else if (doc_type === 'grn') { bill_seq = await getFyCounter('purchase', 'grn'); makeBillNo = (n) => `${prefix}-GRN/${fy_str}/${pad3(n)}`; }
+        else if (doc_type === 'bill') { bill_seq = await getFyCounter('purchase', 'bill'); makeBillNo = (n) => `${prefix}-PB/${fy_str}/${pad3(n)}`; }
+        else if (doc_type === 'dn') { bill_seq = await getFyCounter('purchase', 'dn', false, true); makeBillNo = (n) => `${prefix}-PDN/${fy_str}/${pad3(n)}`; }
+        else makeBillNo = () => `TEMP-${Math.floor(1000 + Math.random() * 9000)}`;
       } else {
-        if (doc_type === 'cn') bill_no = `${prefix}-CN/${fy_str}/${pad3(await getFyCounter('sale', 'cn', true))}`;
-        else bill_no = `${prefix}/${fy_str}/${pad3(await getFyCounter('sale', 'invoice'))}`;
+        if (doc_type === 'cn') { bill_seq = await getFyCounter('sale', 'cn', true); makeBillNo = (n) => `${prefix}-CN/${fy_str}/${pad3(n)}`; }
+        else { bill_seq = await getFyCounter('sale', 'invoice'); makeBillNo = (n) => `${prefix}/${fy_str}/${pad3(n)}`; }
       }
+      bill_no = makeBillNo(bill_seq);
       invoice_date_str = formatDDMonYYYY();
     } else {
       bill_no = data.manual_bill_no || data.bill_no || `TEMP-${Date.now()}`;
@@ -288,11 +313,13 @@ router.post('/generate-invoice', loginRequired, perMinute(30), async (req, res) 
       shipto_district: data.shipto_district, shipto_state: data.shipto_state,
       shipto_gstin: data.shipto_gstin, shipto_email: data.shipto_email, shipto_mobile: data.shipto_mobile,
       po_number: data.po_number, my_gstin: prof.gstin || '', tds_applicable: !!data.tds_applicable,
+      payment_term: data.payment_term || '', expected_delivery_date: data.expected_delivery_date || '',
+      payment_mode: data.payment_mode || '', vendor_contact_person: data.vendor_contact_person || '',
+      vendor_invoice_number: data.vendor_invoice_number || '',
       particulars,
       skus: particulars.map(item_name => {
         if (!item_name) return '';
-        const main = String(item_name).split('
-')[0].trim();
+        const main = String(item_name).split('\n')[0].trim();
         const base = is_non_gst ? main + '_NONGST' : main;
         const matched = particulars_lower_map[base.toLowerCase()] || base;
         const pd = existingParticulars[matched] || existingParticulars[base] || {};
@@ -308,7 +335,49 @@ router.post('/generate-invoice', loginRequired, perMinute(30), async (req, res) 
       line_tax_amounts: line_tax, line_total_amounts: line_total,
     };
 
-    // Inventory updates
+    // ── Save with atomic bill-number guard ────────────────────────────────
+    // Edits deliberately overwrite (upsert). New documents use a strict insert
+    // so a bill number can never silently replace an existing invoice; on a
+    // concurrent collision the auto-numbered path retries with the next number.
+    if (is_edit) {
+      // Preserve fields the edit form does not carry (payment status + shipment),
+      // so re-saving an invoice no longer silently wipes them (which reverted a
+      // Paid invoice to blank and made shipped orders look un-shipped again).
+      try {
+        const { row: existingRow } = await getDocumentRow(req, invoice_data.bill_no);
+        if (existingRow && existingRow.data) {
+          for (const k of ['status', 'status_updated_at', 'rapidshyp_shipment_id',
+            'shipment_id', 'shipment_status_code', 'shipment_status_desc']) {
+            if (existingRow.data[k] !== undefined && invoice_data[k] === undefined) {
+              invoice_data[k] = existingRow.data[k];
+            }
+          }
+        }
+      } catch {}
+      await saveSingleInvoice(req, invoice_data);
+    } else if (makeBillNo) {
+      for (let attempt = 0; ; attempt++) {
+        try {
+          await insertNewInvoice(req, invoice_data);
+          break;
+        } catch (e) {
+          if (e.code === 'DUPLICATE_BILL_NO' && attempt < 20) {
+            bill_seq += 1;
+            bill_no = makeBillNo(bill_seq);
+            invoice_data.bill_no = bill_no;
+            continue;
+          }
+          throw e;
+        }
+      }
+    } else {
+      // Manual bill number on a new document: reject duplicates with 409
+      // instead of silently overwriting the older invoice.
+      await insertNewInvoice(req, invoice_data);
+    }
+
+    // Inventory updates — after the document is safely saved, so a failed save
+    // can no longer leave stock deducted with no invoice behind it.
     if (!is_edit) {
       let direction = 0;
       if (doc_category === 'purchase') direction = doc_type === 'grn' ? 1 : (doc_type === 'dn' ? -1 : 0);
@@ -345,8 +414,6 @@ router.post('/generate-invoice', loginRequired, perMinute(30), async (req, res) 
       }
     }
 
-    await saveSingleInvoice(req, invoice_data);
-
     // Auto-link if this doc was converted from a parent (PO -> GRN, GRN -> Bill, etc).
     if (!is_edit && data._parent_bill_no && data._parent_type) {
       try {
@@ -361,7 +428,7 @@ router.post('/generate-invoice', loginRequired, perMinute(30), async (req, res) 
       } catch (e) { console.warn('[doc_links] link failed:', e.message); }
     }
 
-    const pdfBuf = await generateInvoicePdf(invoice_data, prof, { is_credit_note, is_debit_note });
+    const pdfBuf = await renderDocPdf(invoice_data, prof, { is_credit_note, is_debit_note });
     const doc_id = bill_no.replace(/\//g, '_');
     const prefix = doc_category === 'purchase' ? doc_type.toUpperCase() : (is_credit_note ? 'CreditNote' : 'Invoice');
     res.setHeader('Content-Type', 'application/pdf');
@@ -369,11 +436,11 @@ router.post('/generate-invoice', loginRequired, perMinute(30), async (req, res) 
     res.send(pdfBuf);
   } catch (e) {
     console.error('Generate Error:', e);
-    res.status(500).json({ error: e.message });
+    res.status(e.status || 500).json({ error: e.message });
   }
 });
 
-router.delete('/delete-invoice/:bill_no(*)', loginRequired, async (req, res) => {
+router.delete('/delete-invoice/:bill_no(*)', loginRequired, requireAnyPermission('sale', 'purchase'), async (req, res) => {
   try {
     const billNo = decodeURIComponent(req.params.bill_no);
 
@@ -452,7 +519,7 @@ router.get('/download-invoice/:bill_no(*)', loginRequired, async (req, res) => {
     const is_cn = !!inv.is_credit_note;
     const is_dn = !!inv.is_debit_note;
     const prefix = is_cn ? 'CreditNote' : (is_dn ? 'DebitNote' : 'Invoice');
-    const pdfBuf = await generateInvoicePdf(inv, profile, { is_credit_note: is_cn, is_debit_note: is_dn });
+    const pdfBuf = await renderDocPdf(inv, profile, { is_credit_note: is_cn, is_debit_note: is_dn });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${prefix}_${billNo.replace(/\//g, '_')}.pdf"`);
     res.send(pdfBuf);
@@ -476,7 +543,7 @@ router.post('/download-zip', loginRequired, async (req, res) => {
       if (!inv) continue;
       const is_cn = !!inv.is_credit_note;
       const is_dn = !!inv.is_debit_note;
-      const pdfBuf = await generateInvoicePdf(inv, profile, { is_credit_note: is_cn, is_debit_note: is_dn });
+      const pdfBuf = await renderDocPdf(inv, profile, { is_credit_note: is_cn, is_debit_note: is_dn });
       const prefix = is_cn ? 'CreditNote' : (is_dn ? 'DebitNote' : ((inv.doc_type === 'po') ? 'PO' : 'Invoice'));
       zip.append(pdfBuf, { name: `${prefix}_${bno.replace(/\//g, '_')}.pdf` });
     }
@@ -486,7 +553,9 @@ router.post('/download-zip', loginRequired, async (req, res) => {
   }
 });
 
-router.get('/generate-credit-note/:bill_no(*)', loginRequired, async (req, res) => {
+// POST (not GET): creating a credit note persists a document, so it must not be
+// triggerable by a cross-site navigation / prefetch of a URL.
+router.post('/generate-credit-note/:bill_no(*)', loginRequired, requireAnyPermission('sale', 'purchase'), async (req, res) => {
   try {
     const billNo = decodeURIComponent(req.params.bill_no);
     const invoices = await loadInvoices(req);
@@ -502,14 +571,16 @@ router.get('/generate-credit-note/:bill_no(*)', loginRequired, async (req, res) 
     if (!orig) return res.status(404).json({ error: 'Original Invoice not found' });
 
     const fy_str = fyString();
-    const count = invoices.filter((d) => d.is_credit_note && (d.bill_no || '').includes(fy_str)).length + 1;
     const prefix = String(profile.invoice_prefix || 'TE').toUpperCase();
-    const cn_no = `${prefix}-CN/${fy_str}/${String(count).padStart(3, '0')}`;
+    const makeCnNo = (n) => `${prefix}-CN/${fy_str}/${String(n).padStart(3, '0')}`;
+    let cnSeq = invoices.filter((d) => d.is_credit_note && (d.bill_no || '').includes(fy_str)).length + 1;
+    let cn_no = makeCnNo(cnSeq);
     const cn_data = { ...orig };
     Object.assign(cn_data, {
       bill_no: cn_no,
       original_invoice_no: billNo,
       invoice_date: formatDDMonYYYY(),
+      timestamp: nowIso(),
       is_credit_note: true,
       sub_total: -Math.abs(orig.sub_total || 0),
       igst: -Math.abs(orig.igst || 0),
@@ -521,12 +592,29 @@ router.get('/generate-credit-note/:bill_no(*)', loginRequired, async (req, res) 
       line_tax_amounts: (orig.line_tax_amounts || []).map((t) => -Math.abs(parseFloat(t) || 0)),
       line_total_amounts: (orig.line_total_amounts || []).map((t) => -Math.abs(parseFloat(t) || 0)),
     });
+    // A credit note must not inherit the original invoice's payment status or shipment.
+    delete cn_data.status; delete cn_data.status_updated_at;
+    delete cn_data.rapidshyp_shipment_id; delete cn_data.shipment_id;
+    delete cn_data.shipment_status_code; delete cn_data.shipment_status_desc;
 
-    const tenant = await getTenantId(req);
-    await supabase.from('documents').upsert(
-      { tenant_id: tenant, bill_no: cn_no.replace(/\//g, '_'), collection_name: 'sales_credit_notes', data: cn_data },
-      { onConflict: 'tenant_id,bill_no' }
-    );
+    // Strict insert with next-number retry: the (tenant_id, bill_no) primary key
+    // makes it impossible for two concurrent credit notes to share a number or
+    // overwrite each other, and insertNewInvoice also posts the CN to the ledger
+    // (the old direct upsert bypassed the journal, understating GST liability).
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await insertNewInvoice(req, cn_data);
+        break;
+      } catch (e) {
+        if (e.code === 'DUPLICATE_BILL_NO' && attempt < 20) {
+          cnSeq += 1;
+          cn_no = makeCnNo(cnSeq);
+          cn_data.bill_no = cn_no;
+          continue;
+        }
+        throw e;
+      }
+    }
     const pdfBuf = await generateInvoicePdf(cn_data, profile, { is_credit_note: true });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="CreditNote_${cn_no.replace(/\//g, '_')}.pdf"`);
@@ -536,17 +624,16 @@ router.get('/generate-credit-note/:bill_no(*)', loginRequired, async (req, res) 
   }
 });
 
-router.post('/update-status/:bill_no(*)', loginRequired, async (req, res) => {
+router.post('/update-status/:bill_no(*)', loginRequired, requireAnyPermission('sale', 'purchase'), async (req, res) => {
   try {
     const billNo = decodeURIComponent(req.params.bill_no);
     const newStatus = (req.body && req.body.status);
     if (!['Draft', 'Confirmed', 'Paid', 'Cancelled'].includes(newStatus)) return res.status(400).json({ error: 'Invalid status' });
     const { row } = await getDocumentRow(req, billNo);
     if (!row || !row.data) return res.status(404).json({ error: 'Invoice not found' });
-    const dt = row.data;
-    dt.status = newStatus;
-    dt.status_updated_at = nowIso();
-    await updateDocumentData(req, billNo, dt);
+    // Targeted merge of only the status fields — writing the whole document back
+    // from a stale snapshot could clobber a concurrent edit or payment update.
+    await patchDocumentMeta(req, billNo, { status: newStatus, status_updated_at: nowIso() });
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: e.message });

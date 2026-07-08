@@ -21,6 +21,27 @@ function hasPermission(user, perm) {
   return Array.isArray(user.permissions) && user.permissions.includes(perm);
 }
 
+// Route guard: allow the request only if the logged-in user is master OR holds
+// ANY of the listed permissions. Mirrors the nav's own gating (e.g. the Accounts
+// area is shown to users with 'accounts' OR 'sale' OR 'purchase'), so it does not
+// lock out staff who are legitimately meant to reach a module.
+function requireAnyPermission(...perms) {
+  return function (req, res, next) {
+    const user = req.session && req.session.user;
+    if (!user) {
+      if (req.method === 'GET' && req.accepts('html')) return res.redirect('/login');
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    if (user.is_master) return next();
+    const ok = Array.isArray(user.permissions) && perms.some((p) => user.permissions.includes(p));
+    if (ok) return next();
+    if (req.method === 'GET' && req.accepts('html')) {
+      return res.status(403).send('You do not have permission to access this section.');
+    }
+    return res.status(403).json({ error: 'You do not have permission for this action.' });
+  };
+}
+
 function activationCheck(req, res, next) {
   const u = req.session && req.session.user;
   if (!u) return next();
@@ -33,4 +54,4 @@ function activationCheck(req, res, next) {
   return res.status(403).json({ error: 'Account inactive' });
 }
 
-module.exports = { loginRequired, masterOnly, hasPermission, activationCheck };
+module.exports = { loginRequired, masterOnly, hasPermission, requireAnyPermission, activationCheck };

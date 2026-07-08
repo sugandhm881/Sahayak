@@ -1,8 +1,11 @@
 ﻿const express = require('express');
 const router = express.Router();
 
-const { loginRequired } = require('../middleware/auth');
+const { loginRequired, requireAnyPermission } = require('../middleware/auth');
 const { loadInvoices, loadInvoicesForUser } = require('../repositories/documents.repo');
+
+// Reports are visible to reporting/accounting staff and to any sales/purchase user.
+router.use(requireAnyPermission('reports', 'accounts', 'sale', 'purchase'));
 const { allPaymentsRaw } = require('../repositories/payments.repo');
 const { getSellerProfile } = require('../repositories/configs.repo');
 const { generateReportExcel } = require('../services/excel/report');
@@ -116,7 +119,7 @@ async function getAvailableFysForParty(req, party_name) {
   return sortedFys(fySet);
 }
 
-// Fallback ledger builder â€” raw invoices + payments filtered to a FY
+// Fallback ledger builder — raw invoices + payments filtered to a FY
 async function buildLedgerEntries(req, party_name, fy) {
   const pnLower = party_name.trim().toLowerCase();
   const invoices = await loadInvoices(req);
@@ -158,7 +161,7 @@ async function buildLedgerEntries(req, party_name, fy) {
     .map(({ iso, ...rest }) => rest);
 }
 
-// Primary ledger builder â€” journal_entries filtered to a FY
+// Primary ledger builder — journal_entries filtered to a FY
 async function buildLedgerFromJournal(req, party_name, fy) {
   const supabase = require('../config/supabase');
   const { getTenantId } = require('../middleware/tenant');

@@ -1,6 +1,8 @@
+const crypto = require('crypto');
+
+// Cryptographically-secure 6-digit OTP (Math.random is predictable and must not
+// be used for security tokens).
 function generateOtp() {
-  let s = '';
-  for (let i = 0; i < 6; i++) s += Math.floor(Math.random() * 10);
-  return s;
+  return String(crypto.randomInt(0, 1000000)).padStart(6, '0');
 }
 module.exports = { generateOtp };

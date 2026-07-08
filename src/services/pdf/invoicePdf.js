@@ -414,21 +414,26 @@ async function generateInvoicePdf(invoiceData, profile, opts = {}) {
     const part_str = String(particulars[i] || '');
 
     // Pre-compute row height to decide on page-break.
+    // Height must be measured at the SAME width the text is rendered at
+    // (p_w - 2), else a name that wraps one line more when rendered makes the
+    // row too short and the next row's zebra fill paints over the SKU line.
     let part_h;
     if (part_str.includes('\n')) {
       const [main, ...rest] = part_str.split('\n');
       const sub = rest.join('\n');
       pdf.set_font('Calibri', 'B', 9);
-      const hMain = pdf.multi_cell_height(p_w, 5, main);
+      const hMain = pdf.multi_cell_height(p_w - 2, 5, main);
       pdf.set_font('Calibri', '', 8);
-      const hSub = pdf.multi_cell_height(p_w, 4, sub);
+      const hSub = pdf.multi_cell_height(p_w - 2, 4, sub);
       part_h = hMain + hSub;
     } else {
       pdf.set_font('Calibri', '', 9);
-      part_h = pdf.multi_cell_height(p_w, 6, part_str);
+      part_h = pdf.multi_cell_height(p_w - 2, 6, part_str);
     }
     const sku_str = !is_service ? String(skus[i] || '') : '';
-    const expected_row_h = Math.max(part_h + (sku_str ? 3.5 : 0), 8);
+    // +1 top offset (text starts at start_y + 1) and +1 bottom breathing room
+    // so the SKU line never touches the row separator.
+    const expected_row_h = Math.max(part_h + 2 + (sku_str ? 3.5 : 0), 8);
     const page_bottom = pdf.h - pdf.bMargin;
     if (pdf.get_y() + expected_row_h > page_bottom) {
       pdf.add_page();
