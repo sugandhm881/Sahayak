@@ -399,6 +399,7 @@ async function generateInvoicePdf(invoiceData, profile, opts = {}) {
 
   pdf.set_font('Calibri', '', 9);
   const particulars = invoiceData.particulars || [];
+  const skus = invoiceData.skus || [];
   const hsns = invoiceData.hsns || [];
   const qtys = invoiceData.qtys || [];
   const rates = invoiceData.rates || [];
@@ -426,7 +427,8 @@ async function generateInvoicePdf(invoiceData, profile, opts = {}) {
       pdf.set_font('Calibri', '', 9);
       part_h = pdf.multi_cell_height(p_w, 6, part_str);
     }
-    const expected_row_h = Math.max(part_h, 8);
+    const sku_str = String(skus[i] || '');
+    const expected_row_h = Math.max(part_h + (sku_str ? 3.5 : 0), 8);
     const page_bottom = pdf.h - pdf.bMargin;
     if (pdf.get_y() + expected_row_h > page_bottom) {
       pdf.add_page();
@@ -458,6 +460,13 @@ async function generateInvoicePdf(invoiceData, profile, opts = {}) {
       pdf.set_font('Calibri', '', 9);
       pdf.set_xy(start_x + 1, start_y + 1);
       pdf.multi_cell(p_w - 2, 6, part_str, 0, 'L');
+    }
+    if (sku_str) {
+      pdf.set_font('Calibri', '', 7);
+      setColor('text', COLOR.muted);
+      pdf.set_xy(start_x + 1, pdf.get_y());
+      pdf.cell(p_w - 2, 3.5, `SKU: ${sku_str}`, 0, 0, 'L');
+      setColor('text', COLOR.ink);
     }
 
     const y_after = pdf.get_y();

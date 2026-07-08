@@ -288,7 +288,17 @@ router.post('/generate-invoice', loginRequired, perMinute(30), async (req, res) 
       shipto_district: data.shipto_district, shipto_state: data.shipto_state,
       shipto_gstin: data.shipto_gstin, shipto_email: data.shipto_email, shipto_mobile: data.shipto_mobile,
       po_number: data.po_number, my_gstin: prof.gstin || '', tds_applicable: !!data.tds_applicable,
-      particulars, qtys, rates, taxrates, hsns, discounts: data.discounts || [],
+      particulars,
+      skus: particulars.map(item_name => {
+        if (!item_name) return '';
+        const main = String(item_name).split('
+')[0].trim();
+        const base = is_non_gst ? main + '_NONGST' : main;
+        const matched = particulars_lower_map[base.toLowerCase()] || base;
+        const pd = existingParticulars[matched] || existingParticulars[base] || {};
+        return pd.product_id || '';
+      }),
+      qtys, rates, taxrates, hsns, discounts: data.discounts || [],
       amounts: line_taxable, total_discount: Math.round(total_discount_amt * 100) / 100,
       sub_total: Math.round(line_taxable.reduce((a, b) => a + b, 0) * 100) / 100,
       igst: Math.round(total_igst * 100) / 100,

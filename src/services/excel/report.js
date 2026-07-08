@@ -94,6 +94,7 @@ async function generateReportExcel(req, userId, opts = {}) {
     { header: 'State / POS',       width: 16 },
     { header: 'Doc Type',          width: 14 },
     { header: 'Item / Service',    width: 32 },
+    { header: 'SKU / Product ID',  width: 16 },
     { header: 'HSN / SAC',         width: 11 },
     { header: 'Qty',               width: 8  },
     { header: 'Rate (₹)',          width: 13 },
@@ -107,9 +108,9 @@ async function generateReportExcel(req, userId, opts = {}) {
     { header: 'Line Total (₹)',    width: 15 },
     { header: 'Pay Status',        width: 12 },
   ];
-  styleHeader(ws, 20);
-  ws.autoFilter = { from: 'A1', to: 'T1' };
-  if (isService) ws.getColumn(11).hidden = true; // Rate (₹) not applicable for service accounts
+  styleHeader(ws, 21);
+  ws.autoFilter = { from: 'A1', to: 'U1' };
+  if (isService) ws.getColumn(12).hidden = true; // Rate (₹) not applicable for service accounts
 
   const g = (arr, i) => (arr && i < arr.length ? arr[i] : '');
   let sno = 0;
@@ -138,6 +139,7 @@ async function generateReportExcel(req, userId, opts = {}) {
         inv.client_state     || '',
         typeLabel,
         parts[i],
+        g(inv.skus,      i),
         g(inv.hsns,      i),
         parseFloat(g(inv.qtys,      i)) || 0,
         parseFloat(g(inv.rates,     i)) || 0,
@@ -153,16 +155,16 @@ async function generateReportExcel(req, userId, opts = {}) {
       ]);
 
       // Number formats
-      row.getCell(10).numFmt = '#,##0.##';   // Qty
-      row.getCell(11).numFmt = MONEY;         // Rate
-      row.getCell(12).numFmt = '0.##';        // Disc %
-      row.getCell(13).numFmt = MONEY;         // Taxable
-      row.getCell(14).numFmt = '0';           // GST %
-      row.getCell(15).numFmt = MONEY;         // CGST
-      row.getCell(16).numFmt = MONEY;         // SGST
-      row.getCell(17).numFmt = MONEY;         // IGST
-      row.getCell(18).numFmt = MONEY;         // Total GST
-      row.getCell(19).numFmt = MONEY;         // Line Total
+      row.getCell(11).numFmt = '#,##0.##';   // Qty
+      row.getCell(12).numFmt = MONEY;         // Rate
+      row.getCell(13).numFmt = '0.##';        // Disc %
+      row.getCell(14).numFmt = MONEY;         // Taxable
+      row.getCell(15).numFmt = '0';           // GST %
+      row.getCell(16).numFmt = MONEY;         // CGST
+      row.getCell(17).numFmt = MONEY;         // SGST
+      row.getCell(18).numFmt = MONEY;         // IGST
+      row.getCell(19).numFmt = MONEY;         // Total GST
+      row.getCell(20).numFmt = MONEY;         // Line Total
 
       row.font = { size: 10, ...(isCN ? { color: { argb: RED_TEXT } } : {}) };
       if (sno % 2 === 0 && !isCN) {
@@ -172,7 +174,7 @@ async function generateReportExcel(req, userId, opts = {}) {
   }
 
   if (sno > 0) {
-    totalRow(ws, 2, sno + 1, [13, 15, 16, 17, 18, 19], 12, 'TOTAL');
+    totalRow(ws, 2, sno + 1, [14, 16, 17, 18, 19, 20], 13, 'TOTAL');
   }
 
   // ──────────────────────────────────────────────────────────────────────
