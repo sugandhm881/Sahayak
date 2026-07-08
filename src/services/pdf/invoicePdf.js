@@ -427,7 +427,7 @@ async function generateInvoicePdf(invoiceData, profile, opts = {}) {
       pdf.set_font('Calibri', '', 9);
       part_h = pdf.multi_cell_height(p_w, 6, part_str);
     }
-    const sku_str = String(skus[i] || '');
+    const sku_str = !is_service ? String(skus[i] || '') : '';
     const expected_row_h = Math.max(part_h + (sku_str ? 3.5 : 0), 8);
     const page_bottom = pdf.h - pdf.bMargin;
     if (pdf.get_y() + expected_row_h > page_bottom) {

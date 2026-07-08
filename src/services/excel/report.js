@@ -110,7 +110,8 @@ async function generateReportExcel(req, userId, opts = {}) {
   ];
   styleHeader(ws, 21);
   ws.autoFilter = { from: 'A1', to: 'U1' };
-  if (isService) ws.getColumn(12).hidden = true; // Rate (₹) not applicable for service accounts
+  if (isService) ws.getColumn(9).hidden  = true; // SKU not applicable for service accounts
+  if (isService) ws.getColumn(12).hidden = true; // Rate not applicable for service accounts
 
   const g = (arr, i) => (arr && i < arr.length ? arr[i] : '');
   let sno = 0;
@@ -139,7 +140,7 @@ async function generateReportExcel(req, userId, opts = {}) {
         inv.client_state     || '',
         typeLabel,
         parts[i],
-        g(inv.skus,      i),
+        inv.invoice_type === 'service' ? '' : g(inv.skus, i),
         g(inv.hsns,      i),
         parseFloat(g(inv.qtys,      i)) || 0,
         parseFloat(g(inv.rates,     i)) || 0,
