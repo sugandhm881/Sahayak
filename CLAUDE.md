@@ -21,4 +21,6 @@ If a change fits none of these, no doc update is needed — but say so explicitl
 - All DB queries must be tenant-scoped via `getTenantId(req)` — never trust a client-sent tenant id.
 - New routes need `loginRequired` plus the correct `requireAnyPermission(...)` / `masterOnly` guard.
 - Never push to remote without explicit user approval in that turn.
+- **No AI attribution anywhere**: never add `Co-Authored-By`, "Generated with Claude",
+  or any Claude/AI watermark or signature to commits, PR bodies, code comments, or docs.
 - Tests: `npm test` (Node built-in runner, `tests/`).
