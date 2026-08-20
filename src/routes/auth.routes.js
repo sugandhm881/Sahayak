@@ -255,17 +255,12 @@ router.post('/verify-signup', loginLimiter, async (req, res) => {
 });
 
 router.get('/logout', loginRequired, (req, res) => {
-  if (req.session) {
-    delete req.session.user;
-    delete req.session.temp_user_id;
-    delete req.session.temp_is_master;
-    delete req.session.otp;
-    delete req.session.view_mode;
-    delete req.session.master_id;
-    delete req.session.flashes;
-  }
-  req.session = null;
-  res.redirect('/login');
+  // Server-side sessions: destroy removes the row from http_sessions, so the
+  // cookie is dead immediately (not just cleared client-side).
+  req.session.destroy(() => {
+    res.clearCookie('sahayak_sess');
+    res.redirect('/login');
+  });
 });
 
 router.get('/activation', loginRequired, (req, res) => {

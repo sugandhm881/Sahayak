@@ -16,6 +16,7 @@ const supabase = require('../../config/supabase');
 const { getTenantId } = require('../../middleware/tenant');
 const { seedAccounts, accountForMode } = require('./accounts');
 const { parseInvoiceDate, fyString } = require('../../utils/dates');
+const { alertError } = require('../alerts');
 
 const seededTenants = new Set();
 
@@ -148,6 +149,8 @@ async function postInvoice(req, invoice) {
     });
   } catch (e) {
     console.warn('[journal] postInvoice failed:', e.message);
+    alertError('journal-post-invoice-failed',
+      `Invoice ${invoice && invoice.bill_no}: ${e.message}\nBooks will drift — run POST /v2/backfill-journal (master) to repair.`);
   }
 }
 
@@ -192,7 +195,11 @@ async function postPayment(req, payment) {
       await deleteJournalFor(tenant, ptype, pid);
       await writeLines(tenant, lines);
     });
-  } catch (e) { console.warn('[journal] postPayment failed:', e.message); }
+  } catch (e) {
+    console.warn('[journal] postPayment failed:', e.message);
+    alertError('journal-post-payment-failed',
+      `Payment ${payment && payment.payment_id}: ${e.message}\nBooks will drift — run POST /v2/backfill-journal (master) to repair.`);
+  }
 }
 
 async function deletePaymentJournal(req, paymentId) {
@@ -228,7 +235,11 @@ async function postExpense(req, expense) {
       await deleteJournalFor(tenant, 'expense', id);
       await writeLines(tenant, lines);
     });
-  } catch (e) { console.warn('[journal] postExpense failed:', e.message); }
+  } catch (e) {
+    console.warn('[journal] postExpense failed:', e.message);
+    alertError('journal-post-expense-failed',
+      `Expense ${expense && expense.expense_id}: ${e.message}\nBooks will drift — run POST /v2/backfill-journal (master) to repair.`);
+  }
 }
 
 async function deleteExpenseJournal(req, expenseId) {

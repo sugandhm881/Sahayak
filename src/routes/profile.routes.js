@@ -9,6 +9,7 @@ const { getSellerProfile, saveSellerProfile } = require('../repositories/configs
 const { getUser, createUser, updateUser, deleteUser, listActivationRequests, getActivationRequest, updateActivationRequest } = require('../repositories/users.repo');
 const { hashPassword } = require('../utils/password');
 const { compressImage } = require('../utils/imageCompress');
+const { destroySessionsForUser } = require('../services/sessionStore');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -74,6 +75,8 @@ router.post('/profile', loginRequired, upload.fields([{ name: 'logo' }, { name: 
     const target = body.target_user_id;
     const new_status = body.toggle_active === 'true';
     await updateUser(target, { is_active: new_status });
+    // Deactivation must take effect NOW — kill the user's live sessions.
+    if (!new_status) await destroySessionsForUser(target);
     req.flash('success', `User ${new_status ? 'Activated' : 'Deactivated'}`);
     return res.redirect(`/profile?edit_user=${encodeURIComponent(target)}`);
   }
@@ -108,6 +111,8 @@ router.post('/profile', loginRequired, upload.fields([{ name: 'logo' }, { name: 
       try { await supabase.from(t).update({ tenant_id: new_u }).eq('tenant_id', old_u); } catch {}
     }
     await supabase.from('app_users').update({ username: new_u }).eq('username', old_u);
+    // Sessions carry the old username — kill them so the user re-logs-in cleanly.
+    await destroySessionsForUser(old_u);
     req.flash('success', 'User renamed successfully.');
     return res.redirect(`/profile?edit_user=${encodeURIComponent(new_u)}`);
   }
@@ -204,6 +209,8 @@ router.post('/profile/change-own-password', loginRequired, async (req, res) => {
       return res.redirect('/profile');
     }
     await updateUser(user.id, { password: await hashPassword(new_password) });
+    // Kill any OTHER live sessions for this user (keep the current one).
+    await destroySessionsForUser(user.id, { exceptSid: req.sessionID });
     req.flash('success', 'Password updated successfully!');
   } catch (e) {
     req.flash('error', 'Error updating password: ' + e.message);
@@ -216,6 +223,8 @@ router.post('/reset-password', loginRequired, masterOnly, async (req, res) => {
   if (target_user_id && reset_password) {
     try {
       await updateUser(target_user_id, { password: await hashPassword(reset_password) });
+      // A master reset invalidates every live session of that user.
+      await destroySessionsForUser(target_user_id);
       req.flash('success', 'Password updated successfully!');
     } catch (e) {
       req.flash('error', `Database error: ${e.message}`);

@@ -1,6 +1,6 @@
 const path = require('path');
 const express = require('express');
-const cookieSession = require('cookie-session');
+const expressSession = require('express-session');
 const cookieParser = require('cookie-parser');
 const nunjucks = require('nunjucks');
 const multer = require('multer');
@@ -8,8 +8,11 @@ const multer = require('multer');
 const env = require('./config/env');
 const { defaultLimiter, dayLimiter } = require('./middleware/rateLimit');
 const { activationCheck } = require('./middleware/auth');
+const { csrfProtect } = require('./middleware/csrf');
 const { getSellerProfile } = require('./repositories/configs.repo');
 const { getAllUsers } = require('./middleware/tenant');
+const { SupabaseSessionStore } = require('./services/sessionStore');
+const { alertError } = require('./services/alerts');
 
 const BASE_DIR = path.resolve(__dirname, '..');
 const TEMPLATE_DIR = path.join(BASE_DIR, 'templates');
@@ -74,22 +77,38 @@ function createApp() {
   app.set('view engine', 'html');
   app.engine('html', nunjucksEnv.render.bind(nunjucksEnv));
 
+  // Uptime probe — registered BEFORE rate limiters (monitor pings must not
+  // consume the request budget) and before the routers (whose router-level
+  // permission guards would otherwise redirect it to /login).
+  app.get('/health', (req, res) => res.json({ ok: true, ts: new Date().toISOString() }));
+
   // Middleware
   app.use(cookieParser());
   app.use(express.json({ limit: '20mb' }));
   app.use(express.urlencoded({ extended: true, limit: '20mb' }));
   app.use('/static', express.static(STATIC_DIR));
 
+  // Server-side sessions (Supabase-backed, revocable). The cookie now carries
+  // only a signed session id — session data never leaves the server.
   app.use(
-    cookieSession({
+    expressSession({
       name: 'sahayak_sess',
-      keys: [env.SECRET_KEY],
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: env.NODE_ENV === 'production',
+      secret: env.SECRET_KEY,
+      store: new SupabaseSessionStore(),
+      resave: false,
+      saveUninitialized: false,
+      proxy: true,
+      cookie: {
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: env.NODE_ENV === 'production',
+      },
     })
   );
+
+  // CSRF: block cross-site state-changing requests (fetch-metadata / Origin).
+  app.use(csrfProtect);
 
   // Flash helper
   app.use((req, res, next) => {
@@ -179,6 +198,7 @@ function createApp() {
       return res.status(400).json({ error: err.message });
     }
     console.error('Unhandled error:', err);
+    alertError('unhandled-error', `${req.method} ${req.originalUrl}\n\n${(err && err.stack) || err}`);
     if (res.headersSent) return;
     res.status(500).json({ error: err.message || 'Internal error' });
   });

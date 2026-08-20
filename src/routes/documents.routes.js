@@ -23,6 +23,7 @@ const { formatDDMonYYYY, formatLedgerDate, fyString, nowIso } = require('../util
 const easyecomService = require('../services/easyecom.service');
 const { linkDocs, listChildren, listParents, unlinkChild } = require('../repositories/docLinks.repo');
 const { getPending, prefillFromParent } = require('../services/docConversion');
+const { nextDocSeq } = require('../repositories/counters.repo');
 
 // Purchase Orders render with a dedicated PO layout; everything else uses the invoice PDF.
 async function renderDocPdf(data, profile, opts = {}) {
@@ -218,12 +219,15 @@ router.post('/generate-invoice', loginRequired, perMinute(30), async (req, res) 
     let invoice_date_str;
     let makeBillNo = null;
     let bill_seq = 0;
+    let nextSeqFn = null; // atomic counter; re-invoked on a numbering collision
     const prof = await getSellerProfile(req);
     if ((data.auto_generate === undefined || data.auto_generate) && !is_edit) {
       const prefix = String(prof.invoice_prefix || 'TE').toUpperCase();
       const fy_str = fyString();
 
-      const getFyCounter = async (cat, dtype, is_cn = false, is_dn = false) => {
+      // Legacy full-scan count — now used only to SEED a missing counter row
+      // (first document of a series per FY) or as a fallback pre-migration-002.
+      const countFyDocs = (cat, dtype, is_cn = false, is_dn = false) => async () => {
         const docs = await loadInvoices(req);
         let count = 0;
         for (const d of docs) {
@@ -234,21 +238,26 @@ router.post('/generate-invoice', loginRequired, perMinute(30), async (req, res) 
             if ((d.bill_no || '').includes(fy_str)) count++;
           }
         }
-        return count + 1;
+        return count;
       };
 
       const pad3 = (n) => String(n).padStart(3, '0');
+      const series = (key, make, countFn) => {
+        nextSeqFn = () => nextDocSeq(req, key, fy_str, countFn);
+        makeBillNo = make;
+      };
 
       if (doc_category === 'purchase') {
-        if (doc_type === 'po') { bill_seq = await getFyCounter('purchase', 'po'); makeBillNo = (n) => `${prefix}-PO/${fy_str}/${pad3(n)}`; }
-        else if (doc_type === 'grn') { bill_seq = await getFyCounter('purchase', 'grn'); makeBillNo = (n) => `${prefix}-GRN/${fy_str}/${pad3(n)}`; }
-        else if (doc_type === 'bill') { bill_seq = await getFyCounter('purchase', 'bill'); makeBillNo = (n) => `${prefix}-PB/${fy_str}/${pad3(n)}`; }
-        else if (doc_type === 'dn') { bill_seq = await getFyCounter('purchase', 'dn', false, true); makeBillNo = (n) => `${prefix}-PDN/${fy_str}/${pad3(n)}`; }
+        if (doc_type === 'po') series('purchase_po', (n) => `${prefix}-PO/${fy_str}/${pad3(n)}`, countFyDocs('purchase', 'po'));
+        else if (doc_type === 'grn') series('purchase_grn', (n) => `${prefix}-GRN/${fy_str}/${pad3(n)}`, countFyDocs('purchase', 'grn'));
+        else if (doc_type === 'bill') series('purchase_bill', (n) => `${prefix}-PB/${fy_str}/${pad3(n)}`, countFyDocs('purchase', 'bill'));
+        else if (doc_type === 'dn') series('purchase_dn', (n) => `${prefix}-PDN/${fy_str}/${pad3(n)}`, countFyDocs('purchase', 'dn', false, true));
         else makeBillNo = () => `TEMP-${Math.floor(1000 + Math.random() * 9000)}`;
       } else {
-        if (doc_type === 'cn') { bill_seq = await getFyCounter('sale', 'cn', true); makeBillNo = (n) => `${prefix}-CN/${fy_str}/${pad3(n)}`; }
-        else { bill_seq = await getFyCounter('sale', 'invoice'); makeBillNo = (n) => `${prefix}/${fy_str}/${pad3(n)}`; }
+        if (doc_type === 'cn') series('sale_cn', (n) => `${prefix}-CN/${fy_str}/${pad3(n)}`, countFyDocs('sale', 'cn', true));
+        else series('sale_invoice', (n) => `${prefix}/${fy_str}/${pad3(n)}`, countFyDocs('sale', 'invoice'));
       }
+      if (nextSeqFn) bill_seq = await nextSeqFn();
       bill_no = makeBillNo(bill_seq);
       invoice_date_str = formatDDMonYYYY();
     } else {
@@ -362,7 +371,9 @@ router.post('/generate-invoice', loginRequired, perMinute(30), async (req, res) 
           break;
         } catch (e) {
           if (e.code === 'DUPLICATE_BILL_NO' && attempt < 20) {
-            bill_seq += 1;
+            // Pull the next atomic sequence (also advances the counter past
+            // manually-numbered documents); fall back to local increment.
+            bill_seq = nextSeqFn ? await nextSeqFn() : bill_seq + 1;
             bill_no = makeBillNo(bill_seq);
             invoice_data.bill_no = bill_no;
             continue;
@@ -573,7 +584,10 @@ router.post('/generate-credit-note/:bill_no(*)', loginRequired, requireAnyPermis
     const fy_str = fyString();
     const prefix = String(profile.invoice_prefix || 'TE').toUpperCase();
     const makeCnNo = (n) => `${prefix}-CN/${fy_str}/${String(n).padStart(3, '0')}`;
-    let cnSeq = invoices.filter((d) => d.is_credit_note && (d.bill_no || '').includes(fy_str)).length + 1;
+    // Same atomic series as /generate-invoice's CN path ('sale_cn').
+    const cnCount = async () => invoices.filter((d) => d.is_credit_note && (d.bill_no || '').includes(fy_str)).length;
+    const nextCnSeq = () => nextDocSeq(req, 'sale_cn', fy_str, cnCount);
+    let cnSeq = await nextCnSeq();
     let cn_no = makeCnNo(cnSeq);
     const cn_data = { ...orig };
     Object.assign(cn_data, {
@@ -607,7 +621,7 @@ router.post('/generate-credit-note/:bill_no(*)', loginRequired, requireAnyPermis
         break;
       } catch (e) {
         if (e.code === 'DUPLICATE_BILL_NO' && attempt < 20) {
-          cnSeq += 1;
+          cnSeq = await nextCnSeq();
           cn_no = makeCnNo(cnSeq);
           cn_data.bill_no = cn_no;
           continue;

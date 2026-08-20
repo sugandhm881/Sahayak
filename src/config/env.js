@@ -32,6 +32,8 @@ module.exports = {
   EMAIL_PORT: parseInt(process.env.EMAIL_PORT || '587', 10),
   EMAIL_USER: process.env.EMAIL_USER,
   EMAIL_PASSWORD: process.env.EMAIL_PASSWORD,
+  // Where critical-error alert emails go (falls back to EMAIL_USER)
+  ALERT_EMAIL: process.env.ALERT_EMAIL || null,
   UPI_ID: 'sugandh.mishra1@ybl',
   UPI_NAME: 'SM Tech',
   REPORT_HOUR_UTC: 16,
